@@ -8,7 +8,7 @@ let selectedBusiness = 'all';
 let selectedLocation = 'all';
 let currentDateRange = null;
 let previousDateRange = null;
-let returningWindow = 1;
+let returningWindow = 0; // Default to "Mismo Mes" (Same Month)
 let firstTimeUsersThreshold = 1; // Default threshold for first-time users
 let uniqueUsersChart = null;
 let returningUsersChart = null;
@@ -272,6 +272,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // Update the dashboard with new date ranges
         filterAndUpdateDashboard();
     });
+
+    // Make sure the dropdown shows the correct default value
+    document.getElementById('returningWindow').value = '0';
 });
 
 function handleFileSelect(event) {
@@ -1415,6 +1418,47 @@ function updateDashboard(data) {
     updateComparisonDisplay('amountComparison', totalAmountGrowth);
     updateComparisonDisplay('avgVisitsComparison', avgVisitsGrowth);
 
+    // Calculate average ticket amount
+    const totalTransactions = filteredData.length;
+    const totalTransactionsPrev = previousPeriodData.length;
+
+    let avgTicket = 0;
+    let avgTicketPrev = 0;
+
+    if (totalTransactions > 0) {
+        avgTicket = totalAmount / totalTransactions;
+    }
+
+    if (totalTransactionsPrev > 0) {
+        avgTicketPrev = totalAmountPrev / totalTransactionsPrev;
+    }
+
+    safeSetText('avgTicket', avgTicket.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }));
+    safeSetText('avgTicketPrev', avgTicketPrev.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }));
+
+    // Calculate percentage change for average ticket
+    if (avgTicketPrev > 0) {
+        const avgTicketPercentChange = ((avgTicket - avgTicketPrev) / avgTicketPrev * 100).toFixed(1);
+        const avgTicketComparisonElement = document.getElementById('avgTicketComparison');
+        if (avgTicketComparisonElement) {
+            avgTicketComparisonElement.textContent = `${avgTicketPercentChange}%`;
+            avgTicketComparisonElement.classList.remove('positive', 'negative');
+            if (parseFloat(avgTicketPercentChange) > 0) {
+                avgTicketComparisonElement.classList.add('positive');
+            } else if (parseFloat(avgTicketPercentChange) < 0) {
+                avgTicketComparisonElement.classList.add('negative');
+            }
+        }
+    } else {
+        safeSetText('avgTicketComparison', '-');
+    }
+
     try {
         // Update charts with filtered data
         if (filteredData.length > 0) {
@@ -1898,4 +1942,20 @@ async function loadDataFromApi() {
     } catch (error) {
         console.error('Error loading data from API:', error);
     }
+}
+
+function calculateAverageTicket(transactions) {
+    console.log("Calculating average ticket for", transactions.length, "transactions");
+    
+    if (!transactions || transactions.length === 0) {
+        console.log("No transactions found, returning 0");
+        return 0;
+    }
+    
+    const totalAmount = transactions.reduce((sum, item) => sum + item.amount, 0);
+    const totalTransactions = transactions.length;
+    const avgTicket = totalAmount / totalTransactions;
+    
+    console.log("Total amount:", totalAmount, "Total transactions:", totalTransactions, "Average ticket:", avgTicket);
+    return avgTicket;
 }
