@@ -204,4 +204,26 @@ body {
     .login-button {
         padding: 16px; /* Larger touch target */
     }
+}
+
+/* Estilos para el aviso de confidencialidad en el login */
+.login-confidentiality {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.login-confidentiality p {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #777;
+    line-height: 1.4;
+    font-style: italic;
+}
+
+@media (max-width: 480px) {
+    .login-confidentiality p {
+        font-size: 0.7rem;
+    }
 } 

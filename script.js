@@ -658,6 +658,13 @@ function filterAndUpdateDashboard() {
         console.error('Transaction data is not an array');
         transactionData = [];
     }
+    
+    // If no specific business is selected, show no data
+    if (selectedBusiness === 'all') {
+        // Clear all metrics
+        clearDashboardData();
+        return;
+    }
 
     let filteredData = [...transactionData];
 
@@ -1233,107 +1240,146 @@ function initFirstTimeUsersChart(data) {
 }
 
 function updateCharts(data) {
-    // Group data by month
-    const monthlyData = {};
-
-    // Group data by month (data is already filtered by date range)
-    data.forEach(item => {
-        const monthYear = formatYearMonth(item.date);
-        if (!monthlyData[monthYear]) {
-            monthlyData[monthYear] = {
-                users: new Set(),
-                returningUsers: new Set(),
-                lastMonthReturningUsers: new Set(),
-                firstTimeUsers: new Set(),
-                amount: 0,
-                visits: {}
-            };
+    try {
+        // If data is empty, clear charts and return
+        if (!data || data.length === 0) {
+            if (uniqueUsersChart) {
+                uniqueUsersChart.data.labels = [];
+                uniqueUsersChart.data.datasets[0].data = [];
+                uniqueUsersChart.update();
+            }
+            if (returningUsersChart) {
+                returningUsersChart.data.labels = [];
+                returningUsersChart.data.datasets[0].data = [];
+                returningUsersChart.update();
+            }
+            if (returningUsersPercentageChart) {
+                returningUsersPercentageChart.data.labels = [];
+                returningUsersPercentageChart.data.datasets[0].data = [];
+                returningUsersPercentageChart.update();
+            }
+            if (totalAmountChart) {
+                totalAmountChart.data.labels = [];
+                totalAmountChart.data.datasets[0].data = [];
+                totalAmountChart.update();
+            }
+            if (avgVisitsChart) {
+                avgVisitsChart.data.labels = [];
+                avgVisitsChart.data.datasets[0].data = [];
+                avgVisitsChart.update();
+            }
+            if (firstTimeUsersChart) {
+                firstTimeUsersChart.data.labels = [];
+                firstTimeUsersChart.data.datasets[0].data = [];
+                firstTimeUsersChart.update();
+            }
+            return;
         }
+        
+        // Group data by month
+        const monthlyData = {};
 
-        monthlyData[monthYear].users.add(item.email);
-        monthlyData[monthYear].amount += item.amount;
-
-        // Track visits per user
-        if (!monthlyData[monthYear].visits[item.email]) {
-            monthlyData[monthYear].visits[item.email] = new Set();
-        }
-        monthlyData[monthYear].visits[item.email].add(item.date.toDateString());
-    });
-
-    // Calculate metrics for each month
-    const sortedMonths = Object.keys(monthlyData).sort();
-    sortedMonths.forEach((month) => {
-        // Calculate first-time users based on threshold
-        monthlyData[month].firstTimeUsers = new Set();
-
-        // For each user who had a transaction this month
-        monthlyData[month].users.forEach(email => {
-            // Skip if we're looking at all businesses
-            if (selectedBusiness === 'all') {
-                return;
+        // Group data by month (data is already filtered by date range)
+        data.forEach(item => {
+            const monthYear = formatYearMonth(item.date);
+            if (!monthlyData[monthYear]) {
+                monthlyData[monthYear] = {
+                    users: new Set(),
+                    returningUsers: new Set(),
+                    lastMonthReturningUsers: new Set(),
+                    firstTimeUsers: new Set(),
+                    amount: 0,
+                    visits: {}
+                };
             }
 
-            // Get user's first visit to the selected business
-            const userBusinessKey = `${email}-${selectedBusiness}`;
-            const businessFirstVisit = globalUserBusinessFirstVisit.get(userBusinessKey);
+            monthlyData[monthYear].users.add(item.email);
+            monthlyData[monthYear].amount += item.amount;
 
-            // Skip if user never visited this business or first visit wasn't in this month
-            if (!businessFirstVisit || formatYearMonth(businessFirstVisit) !== month) {
-                return;
+            // Track visits per user
+            if (!monthlyData[monthYear].visits[item.email]) {
+                monthlyData[monthYear].visits[item.email] = new Set();
             }
-
-            // Get user's first ever visit
-            const userFirstEverVisit = globalUserFirstVisit.get(email);
-
-            // Calculate days between first ever visit and first business visit
-            const daysDiff = (businessFirstVisit.getTime() - userFirstEverVisit.getTime()) / (1000 * 60 * 60 * 24);
-
-            // Add to first-time users if days difference meets threshold
-            if (daysDiff >= firstTimeUsersThreshold) {
-                monthlyData[month].firstTimeUsers.add(email);
-            }
+            monthlyData[monthYear].visits[item.email].add(item.date.toDateString());
         });
 
-        // Calculate regular returning users (multiple visits in same month)
-        monthlyData[month].returningUsers = new Set(
-            Object.entries(monthlyData[month].visits)
-                .filter(([_, dates]) => dates.size > 1)
-                .map(([email]) => email)
-        );
+        // Calculate metrics for each month
+        const sortedMonths = Object.keys(monthlyData).sort();
+        sortedMonths.forEach((month) => {
+            // Calculate first-time users based on threshold
+            monthlyData[month].firstTimeUsers = new Set();
 
-        // Calculate users returning from previous months based on window
-        if (month && returningWindow > 0) {
-            const previousMonthsUsers = new Set();
-            for (let i = 1; i <= returningWindow; i++) {
-                const previousMonth = sortedMonths[sortedMonths.indexOf(month) - i];
-                if (previousMonth && monthlyData[previousMonth]) {
-                    monthlyData[previousMonth].users.forEach(email => previousMonthsUsers.add(email));
+            // For each user who had a transaction this month
+            monthlyData[month].users.forEach(email => {
+                // Skip if we're looking at all businesses
+                if (selectedBusiness === 'all') {
+                    return;
                 }
-            }
-            monthlyData[month].lastMonthReturningUsers = new Set(
-                [...monthlyData[month].users].filter(email => previousMonthsUsers.has(email))
+
+                // Get user's first visit to the selected business
+                const userBusinessKey = `${email}-${selectedBusiness}`;
+                const businessFirstVisit = globalUserBusinessFirstVisit.get(userBusinessKey);
+
+                // Skip if user never visited this business or first visit wasn't in this month
+                if (!businessFirstVisit || formatYearMonth(businessFirstVisit) !== month) {
+                    return;
+                }
+
+                // Get user's first ever visit
+                const userFirstEverVisit = globalUserFirstVisit.get(email);
+
+                // Calculate days between first ever visit and first business visit
+                const daysDiff = (businessFirstVisit.getTime() - userFirstEverVisit.getTime()) / (1000 * 60 * 60 * 24);
+
+                // Add to first-time users if days difference meets threshold
+                if (daysDiff >= firstTimeUsersThreshold) {
+                    monthlyData[month].firstTimeUsers.add(email);
+                }
+            });
+
+            // Calculate regular returning users (multiple visits in same month)
+            monthlyData[month].returningUsers = new Set(
+                Object.entries(monthlyData[month].visits)
+                    .filter(([_, dates]) => dates.size > 1)
+                    .map(([email]) => email)
             );
-        }
 
-        const totalVisits = Object.values(monthlyData[month].visits)
-            .reduce((sum, dates) => sum + dates.size, 0);
-        monthlyData[month].avgVisits = totalVisits / monthlyData[month].users.size;
-    });
+            // Calculate users returning from previous months based on window
+            if (month && returningWindow > 0) {
+                const previousMonthsUsers = new Set();
+                for (let i = 1; i <= returningWindow; i++) {
+                    const previousMonth = sortedMonths[sortedMonths.indexOf(month) - i];
+                    if (previousMonth && monthlyData[previousMonth]) {
+                        monthlyData[previousMonth].users.forEach(email => previousMonthsUsers.add(email));
+                    }
+                }
+                monthlyData[month].lastMonthReturningUsers = new Set(
+                    [...monthlyData[month].users].filter(email => previousMonthsUsers.has(email))
+                );
+            }
 
-    // Prepare chart data
-    const labels = sortedMonths;
-    const chartData = {
-        labels: labels,
-        uniqueUsers: labels.map(month => monthlyData[month].users.size),
-        returningUsers: labels.map(month => monthlyData[month].returningUsers.size),
-        lastMonthReturningUsers: labels.map(month => monthlyData[month].lastMonthReturningUsers.size),
-        firstTimeUsers: labels.map(month => monthlyData[month].firstTimeUsers.size),
-        totalAmount: labels.map(month => monthlyData[month].amount),
-        avgVisits: labels.map(month => monthlyData[month].avgVisits)
-    };
+            const totalVisits = Object.values(monthlyData[month].visits)
+                .reduce((sum, dates) => sum + dates.size, 0);
+            monthlyData[month].avgVisits = totalVisits / monthlyData[month].users.size;
+        });
 
-    // Initialize all charts with the data
-    initMetricsCharts(chartData);
+        // Prepare chart data
+        const labels = sortedMonths;
+        const chartData = {
+            labels: labels,
+            uniqueUsers: labels.map(month => monthlyData[month].users.size),
+            returningUsers: labels.map(month => monthlyData[month].returningUsers.size),
+            lastMonthReturningUsers: labels.map(month => monthlyData[month].lastMonthReturningUsers.size),
+            firstTimeUsers: labels.map(month => monthlyData[month].firstTimeUsers.size),
+            totalAmount: labels.map(month => monthlyData[month].amount),
+            avgVisits: labels.map(month => monthlyData[month].avgVisits)
+        };
+
+        // Initialize all charts with the data
+        initMetricsCharts(chartData);
+    } catch (error) {
+        console.error('Error updating charts:', error);
+    }
 }
 
 function updateDashboard(data) {
@@ -1839,6 +1885,12 @@ function initializeBusinessSearch() {
         document.querySelectorAll('#businessOptions .option').forEach(opt => {
             opt.classList.toggle('selected', opt.dataset.value === business);
         });
+        
+        // Remove notification if it exists
+        const notification = document.getElementById('select-business-notification');
+        if (notification) {
+            notification.remove();
+        }
 
         // Update location filter and refresh dashboard
         updateLocationFilter();
@@ -1985,4 +2037,69 @@ function updateLatestTransactionDate() {
     const year = latestDate.getFullYear();
     
     dateElement.textContent = `Fecha más reciente: ${day}/${month}/${year}`;
+}
+
+/**
+ * Clears all dashboard data when no business is selected
+ */
+function clearDashboardData() {
+    // Add a notification or message for the user
+    const notificationElement = document.createElement('div');
+    notificationElement.id = 'select-business-notification';
+    notificationElement.className = 'select-business-notification';
+    notificationElement.innerHTML = `
+        <div class="notification-content">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="#3498db"/>
+            </svg>
+            <p>Por favor, selecciona un negocio específico para ver sus datos</p>
+        </div>
+    `;
+    
+    // Remove existing notification if it exists
+    const existingNotification = document.getElementById('select-business-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    // Add the notification to the analytics section
+    const analyticsSection = document.querySelector('.analytics-section');
+    if (analyticsSection) {
+        analyticsSection.prepend(notificationElement);
+    }
+
+    // Clear metrics values
+    document.getElementById('uniqueUsers').textContent = '0';
+    document.getElementById('uniqueUsersPrev').textContent = '0';
+    document.getElementById('returningUsers').textContent = '0';
+    document.getElementById('returningUsersPrev').textContent = '0';
+    document.getElementById('totalAmount').textContent = '$0';
+    document.getElementById('totalAmountPrev').textContent = '$0';
+    document.getElementById('avgVisits').textContent = '0';
+    document.getElementById('avgVisitsPrev').textContent = '0';
+    document.getElementById('avgTicket').textContent = '$0';
+    document.getElementById('avgTicketPrev').textContent = '$0';
+    
+    // Reset growth indicators
+    document.getElementById('usersComparison').textContent = '-';
+    document.getElementById('usersComparison').className = 'comparison-value';
+    document.getElementById('returningUsersComparison').textContent = '-';
+    document.getElementById('returningUsersComparison').className = 'comparison-value';
+    document.getElementById('amountComparison').textContent = '-';
+    document.getElementById('amountComparison').className = 'comparison-value';
+    document.getElementById('avgVisitsComparison').textContent = '-';
+    document.getElementById('avgVisitsComparison').className = 'comparison-value';
+    document.getElementById('avgTicketComparison').textContent = '-';
+    document.getElementById('avgTicketComparison').className = 'comparison-value';
+    
+    // Clear charts
+    if (uniqueUsersChart) uniqueUsersChart.data.datasets[0].data = [];
+    if (returningUsersChart) returningUsersChart.data.datasets[0].data = [];
+    if (returningUsersPercentageChart) returningUsersPercentageChart.data.datasets[0].data = [];
+    if (totalAmountChart) totalAmountChart.data.datasets[0].data = [];
+    if (avgVisitsChart) avgVisitsChart.data.datasets[0].data = [];
+    if (firstTimeUsersChart) firstTimeUsersChart.data.datasets[0].data = [];
+    
+    // Update charts
+    updateCharts([]);
 }
