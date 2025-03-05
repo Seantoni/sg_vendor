@@ -11,7 +11,7 @@ const API_URL = 'https://ofertasimple.com';
  * @param {string} password - User's password
  * @returns {Promise} - Promise containing token and user data
  */
-async function login(username, password) {
+export async function login(username, password) {
     try {
         const response = await fetch(`${API_URL}/tools/analytics/login`, {
             method: 'POST',
@@ -37,7 +37,7 @@ async function login(username, password) {
  * Fetch CSV data from the API
  * @returns {Promise<string>} - Promise containing CSV data
  */
-async function fetchCsvData() {
+export async function fetchCsvData() {
     try {
         const token = sessionStorage.getItem('token');
 
@@ -67,11 +67,9 @@ async function fetchCsvData() {
  * Check if the user is authenticated
  * @returns {boolean} - True if user is logged in
  */
-function checkAuthentication() {
+export function checkAuthentication() {
     if (!sessionStorage.getItem('token')) {
         return false;
     }
     return true;
 }
-
-export { login, fetchCsvData, checkAuthentication };

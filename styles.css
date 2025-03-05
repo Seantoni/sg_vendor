@@ -26,9 +26,18 @@ header {
 
 .header-title {
     display: flex;
+    flex-wrap: nowrap;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
+}
+
+.header-title h1 {
+    flex: 0 0 auto;
+    text-align: left;
+    margin-bottom: 0;
+    margin-right: 15px;
+    order: 0;
 }
 
 h1 {
@@ -347,6 +356,16 @@ h1 {
     .metrics-chart {
         height: 350px;
     }
+
+    .header-title h1 {
+        text-align: left;
+        margin-bottom: 5px;
+    }
+    
+    .latest-transaction-info {
+        justify-content: flex-start;
+        margin-bottom: 8px;
+    }
 }
 
 .select-search-container {
@@ -536,9 +555,24 @@ h1 {
     }
 
     .header-title {
-        flex-direction: column;
-        gap: 15px;
-        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .header-title h1 {
+        flex: 1 0 100%;
+        margin-bottom: 10px;
+        margin-right: 0;
+    }
+    
+    .latest-transaction-info {
+        flex: 1 1 60%;
+        order: 1;
+    }
+    
+    .user-controls {
+        flex: 0 1 auto;
+        order: 2;
     }
 
     .filters-container {
@@ -941,6 +975,9 @@ html {
     display: flex;
     align-items: center;
     gap: 16px;
+    order: 2;
+    margin-left: auto;
+    flex: 0 0 auto;
 }
 
 .welcome-text {
@@ -1018,4 +1055,20 @@ html {
 
 .download-btn:active {
     transform: translateY(0);
+}
+
+/* Latest transaction date info */
+.latest-transaction-info {
+    display: flex;
+    justify-content: flex-start;
+    flex: 1 1 auto;
+    margin: 0;
+    order: 1;
+}
+
+.latest-date-info {
+    font-size: 14px;
+    color: #555;
+    font-style: italic;
+    text-align: left;
 }

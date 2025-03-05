@@ -189,9 +189,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Set up download CSV button
-    document.getElementById('downloadCsvBtn').addEventListener('click', handleCsvDownload);
-
     // Load pre-built data only after authentication
     if (isAuthenticated()) {
         // Instead of loading from a local file, fetch from API
@@ -248,27 +245,54 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Add this after the date picker initialization code
     document.getElementById('quickDateFilter').addEventListener('change', function (e) {
-        const days = parseInt(e.target.value);
-        if (!days) return; // If no value selected, do nothing
-
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(endDate.getDate() - days);
-
-        // Set the current date range
-        currentDateRange = [startDate, endDate];
-        currentDatePicker.setDate([startDate, endDate]);
-
-        // Calculate and set the previous period
-        const prevEndDate = new Date(startDate);
-        prevEndDate.setDate(prevEndDate.getDate() - 1);
-        const prevStartDate = new Date(prevEndDate);
-        prevStartDate.setDate(prevStartDate.getDate() - days);
-
-        // Set the previous date range
-        previousDateRange = [prevStartDate, prevEndDate];
-        previousDatePicker.setDate([prevStartDate, prevEndDate]);
-
+        const value = e.target.value;
+        
+        if (!value) return; // If no value selected, do nothing
+        
+        if (value === "historico") {
+            // Set start date to May 1st, 2024
+            const startDate = new Date(2024, 4, 1); // Note: month is 0-based (4 = May)
+            
+            // Get the latest transaction date
+            const latestDate = findLatestTransactionDate(transactionData) || new Date();
+            
+            // Set the current date range
+            currentDateRange = [startDate, latestDate];
+            currentDatePicker.setDate([startDate, latestDate]);
+            
+            // Calculate previous period with same duration
+            const duration = latestDate.getTime() - startDate.getTime();
+            const prevEndDate = new Date(startDate);
+            prevEndDate.setDate(prevEndDate.getDate() - 1);
+            const prevStartDate = new Date(prevEndDate);
+            prevStartDate.setTime(prevStartDate.getTime() - duration);
+            
+            // Set the previous date range
+            previousDateRange = [prevStartDate, prevEndDate];
+            previousDatePicker.setDate([prevStartDate, prevEndDate]);
+        } else {
+            // Handle numeric day values (existing functionality)
+            const days = parseInt(value);
+            
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(endDate.getDate() - days);
+            
+            // Set the current date range
+            currentDateRange = [startDate, endDate];
+            currentDatePicker.setDate([startDate, endDate]);
+            
+            // Calculate and set the previous period
+            const prevEndDate = new Date(startDate);
+            prevEndDate.setDate(prevEndDate.getDate() - 1);
+            const prevStartDate = new Date(prevEndDate);
+            prevStartDate.setDate(prevStartDate.getDate() - days);
+            
+            // Set the previous date range
+            previousDateRange = [prevStartDate, prevEndDate];
+            previousDatePicker.setDate([prevStartDate, prevEndDate]);
+        }
+        
         // Update the dashboard with new date ranges
         filterAndUpdateDashboard();
     });
@@ -406,16 +430,12 @@ function processData(csvText) {
     initializeBusinessSearch(); // Reinitialize business search with new data
     updateLocationFilter();
 
-    // Log summary data
-    console.log(`Processed ${transactionData.length} transactions`);
-    if (transactionData.length > 0) {
-        console.log('Sample transaction:', {
-            merchant: maskBusinessName(transactionData[0].merchant),
-            date: transactionData[0].date,
-            amount: transactionData[0].amount
-        });
-    }
-    console.log('Data processing complete');
+    // Build businesses and locations lists for filtering
+    updateBusinessFilter();
+    updateLocationFilter();
+    
+    // Update the latest transaction date display
+    updateLatestTransactionDate();
 }
 
 function initializeSearchableSelect(searchInput, optionsContainer, options, onSelect) {
@@ -1469,6 +1489,9 @@ function updateDashboard(data) {
     } catch (error) {
         console.error('Error updating charts:', error);
     }
+
+    // Update the latest transaction date display
+    updateLatestTransactionDate();
 }
 
 function updateChart(data) {
@@ -1770,15 +1793,11 @@ function initializeBusinessSearch() {
 
     // Function to filter businesses
     function filterBusinesses(searchTerm) {
-        console.log('Filtering businesses with term:', searchTerm);
-        console.log('Available businesses:', sortedBusinesses);
 
         const normalizedTerm = searchTerm.toLowerCase();
         const filteredBusinesses = sortedBusinesses.filter(business =>
             business.toLowerCase().includes(normalizedTerm)
         );
-
-        console.log('Filtered businesses:', filteredBusinesses);
 
         // Update options container
         optionsContainer.innerHTML = '';
@@ -1812,7 +1831,6 @@ function initializeBusinessSearch() {
 
     // Function to handle business selection
     function selectBusiness(business) {
-        console.log('Selecting business:', business);
         selectedBusiness = business;
         searchInput.value = business === 'all' ? '' : business;
         optionsContainer.classList.remove('show');
@@ -1847,30 +1865,6 @@ function initializeBusinessSearch() {
     filterBusinesses('');
 }
 
-// Function to load pre-built data
-function loadPrebuiltData() {
-    if (!isAuthenticated()) {
-        console.error('Authentication required');
-        return;
-    }
-
-    console.log('Loading data...');
-    fetch('Transactions.csv')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to load data');
-            }
-            return response.text();
-        })
-        .then(csvText => {
-            console.log('Data loaded successfully');
-            processData(csvText);
-        })
-        .catch(error => {
-            console.error('Error loading data:', error);
-        });
-}
-
 // Helper function to mask sensitive data
 function maskEmail(email) {
     if (!email) return '';
@@ -1897,7 +1891,7 @@ function maskBusinessName(name) {
 async function handleCsvDownload() {
     try {
         // Show loader or button loading state
-        const downloadBtn = document.getElementById('downloadCsvBtn');
+
         const originalText = downloadBtn.textContent;
         downloadBtn.textContent = 'Descargando...';
         downloadBtn.disabled = true;
@@ -1918,7 +1912,6 @@ async function handleCsvDownload() {
         alert(`Error descargando datos: ${error.message}`);
 
         // Restore button state on error
-        const downloadBtn = document.getElementById('downloadCsvBtn');
         downloadBtn.textContent = 'Descargar datos CSV';
         downloadBtn.disabled = false;
     }
@@ -1958,4 +1951,38 @@ function calculateAverageTicket(transactions) {
     
     console.log("Total amount:", totalAmount, "Total transactions:", totalTransactions, "Average ticket:", avgTicket);
     return avgTicket;
+}
+
+/**
+ * Finds the latest transaction date in the transaction data
+ * @returns {Date|null} - The latest transaction date or null if no transactions
+ */
+function findLatestTransactionDate(transactions) {
+    if (!transactions || transactions.length === 0) {
+        return null;
+    }
+    
+    return new Date(Math.max(...transactions.map(t => new Date(t.date).getTime())));
+}
+
+/**
+ * Updates the latest transaction date display in the dashboard
+ */
+function updateLatestTransactionDate() {
+    const latestDate = findLatestTransactionDate(transactionData);
+    const dateElement = document.getElementById('latestTransactionDate');
+    
+    if (!dateElement) return;
+    
+    if (!latestDate) {
+        dateElement.textContent = 'Fecha más reciente: No hay datos';
+        return;
+    }
+    
+    // Format the date as DD/MM/YYYY
+    const day = latestDate.getDate().toString().padStart(2, '0');
+    const month = (latestDate.getMonth() + 1).toString().padStart(2, '0');
+    const year = latestDate.getFullYear();
+    
+    dateElement.textContent = `Fecha más reciente: ${day}/${month}/${year}`;
 }

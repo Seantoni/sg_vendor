@@ -15,8 +15,8 @@
         <header>
             <div class="header-title">
                 <h1>Panel de Análisis de Transacciones</h1>
-                <div class="file-upload">
-                    <button id="downloadCsvBtn" class="download-btn">Descargar datos CSV</button>
+                <div class="latest-transaction-info">
+                    <span id="latestTransactionDate" class="latest-date-info">Fecha más reciente: Cargando...</span>
                 </div>
                 <div class="user-controls">
                     <span id="welcomeUser" class="welcome-text"></span>
@@ -49,6 +49,7 @@
                         <label>Filtro Rápido</label>
                         <select id="quickDateFilter" class="filter-input">
                             <option value="">Seleccionar período</option>
+                            <option value="historico">Histórico (Desde May 2024)</option>
                             <option value="30">Últimos 30 días</option>
                             <option value="90">Últimos 90 días</option>
                             <option value="120">Últimos 120 días</option>
