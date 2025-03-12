@@ -347,6 +347,21 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Nueva fila para el gráfico de gasto promedio por usuario -->
+                <div class="metrics-charts-grid" style="margin-top: 30px;">
+                    <div class="metrics-chart">
+                        <div class="chart-info">
+                            <i class="info-icon">!</i>
+                            <div class="tooltip">
+                                Muestra el gasto promedio por usuario por mes. Se calcula sumando todos los gastos de cada usuario en el mes y dividiendo por la cantidad de usuarios únicos.
+                                <br><br>
+                                <strong>Ejemplo:</strong> Si el Usuario A gastó $12 en total y el Usuario B gastó $10 en total en el mes, el gasto promedio por usuario sería $11 para ese mes.
+                            </div>
+                        </div>
+                        <canvas id="avgSpendPerUserChart"></canvas>
+                    </div>
+                </div>
             </section>
         </div>
     </div>

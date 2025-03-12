@@ -16,6 +16,7 @@ let returningUsersPercentageChart = null;
 let totalAmountChart = null;
 let avgVisitsChart = null;
 let firstTimeUsersChart = null;
+let avgSpendPerUserChart = null; // Nuevo gráfico para gasto promedio por usuario
 let globalUserFirstVisit = new Map(); // Track first visit date for each user across all businesses
 let globalUserBusinessFirstVisit = new Map(); // Track first visit date for each user-business combination
 let modalChart = null;
@@ -768,6 +769,7 @@ function initMetricsCharts(data) {
     initTotalAmountChart(data);
     initAvgVisitsChart(data);
     initFirstTimeUsersChart(data);
+    initAvgSpendPerUserChart(data);
 }
 
 function initUniqueUsersChart(data) {
@@ -1239,6 +1241,93 @@ function initFirstTimeUsersChart(data) {
     });
 }
 
+function initAvgSpendPerUserChart(data) {
+    const ctx = document.getElementById('avgSpendPerUserChart').getContext('2d');
+    if (avgSpendPerUserChart instanceof Chart) {
+        avgSpendPerUserChart.destroy();
+    }
+
+    avgSpendPerUserChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Gasto Promedio por Usuario',
+                data: data.avgSpendPerUser,
+                backgroundColor: 'rgba(107, 100, 219, 0.7)',
+                borderColor: '#6B64DB',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 30,
+                    bottom: 20,
+                    left: 10,
+                    right: 10
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Gasto Promedio por Usuario',
+                    font: { size: 16, weight: 'bold' },
+                    padding: { bottom: 30, top: 10 }
+                },
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    enabled: false
+                },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 5,
+                    formatter: function (value) {
+                        return new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        }).format(value || 0);
+                    },
+                    font: {
+                        weight: 'bold',
+                        size: 11
+                    },
+                    padding: 6
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Amount ($)',
+                        padding: { top: 10, bottom: 10 }
+                    },
+                    ticks: {
+                        callback: function (value) {
+                            return new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            }).format(value || 0);
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+}
+
 function updateCharts(data) {
     try {
         // If data is empty, clear charts and return
@@ -1273,6 +1362,11 @@ function updateCharts(data) {
                 firstTimeUsersChart.data.datasets[0].data = [];
                 firstTimeUsersChart.update();
             }
+            if (avgSpendPerUserChart) {
+                avgSpendPerUserChart.data.labels = [];
+                avgSpendPerUserChart.data.datasets[0].data = [];
+                avgSpendPerUserChart.update();
+            }
             return;
         }
         
@@ -1289,12 +1383,19 @@ function updateCharts(data) {
                     lastMonthReturningUsers: new Set(),
                     firstTimeUsers: new Set(),
                     amount: 0,
-                    visits: {}
+                    visits: {},
+                    userSpending: {} // Para calcular gasto por usuario
                 };
             }
 
             monthlyData[monthYear].users.add(item.email);
             monthlyData[monthYear].amount += item.amount;
+            
+            // Seguimiento de gasto por usuario
+            if (!monthlyData[monthYear].userSpending[item.email]) {
+                monthlyData[monthYear].userSpending[item.email] = 0;
+            }
+            monthlyData[monthYear].userSpending[item.email] += item.amount;
 
             // Track visits per user
             if (!monthlyData[monthYear].visits[item.email]) {
@@ -1361,6 +1462,10 @@ function updateCharts(data) {
             const totalVisits = Object.values(monthlyData[month].visits)
                 .reduce((sum, dates) => sum + dates.size, 0);
             monthlyData[month].avgVisits = totalVisits / monthlyData[month].users.size;
+            
+            // Calcular gasto promedio por usuario
+            const totalSpending = Object.values(monthlyData[month].userSpending).reduce((sum, amount) => sum + amount, 0);
+            monthlyData[month].avgSpendPerUser = totalSpending / monthlyData[month].users.size || 0;
         });
 
         // Prepare chart data
@@ -1372,7 +1477,8 @@ function updateCharts(data) {
             lastMonthReturningUsers: labels.map(month => monthlyData[month].lastMonthReturningUsers.size),
             firstTimeUsers: labels.map(month => monthlyData[month].firstTimeUsers.size),
             totalAmount: labels.map(month => monthlyData[month].amount),
-            avgVisits: labels.map(month => monthlyData[month].avgVisits)
+            avgVisits: labels.map(month => monthlyData[month].avgVisits),
+            avgSpendPerUser: labels.map(month => monthlyData[month].avgSpendPerUser)
         };
 
         // Initialize all charts with the data
@@ -2045,30 +2151,24 @@ function updateLatestTransactionDate() {
 function clearDashboardData() {
     // Add a notification or message for the user
     const notificationElement = document.createElement('div');
-    notificationElement.id = 'select-business-notification';
     notificationElement.className = 'select-business-notification';
+    notificationElement.id = 'selectBusinessNotification';
     notificationElement.innerHTML = `
-        <div class="notification-content">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="#3498db"/>
-            </svg>
-            <p>Por favor, selecciona un negocio específico para ver sus datos</p>
+        <div class="notification-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"/>
+        </div>
+        <div class="notification-message">
+            Por favor, selecciona un negocio específico para visualizar los datos.
         </div>
     `;
     
-    // Remove existing notification if it exists
-    const existingNotification = document.getElementById('select-business-notification');
-    if (existingNotification) {
-        existingNotification.remove();
+    // Add it to the analytics-header
+    const analyticsHeader = document.querySelector('.analytics-header');
+    if (analyticsHeader && !document.getElementById('selectBusinessNotification')) {
+        analyticsHeader.appendChild(notificationElement);
     }
     
-    // Add the notification to the analytics section
-    const analyticsSection = document.querySelector('.analytics-section');
-    if (analyticsSection) {
-        analyticsSection.prepend(notificationElement);
-    }
-
-    // Clear metrics values
+    // Reset metric values
     document.getElementById('uniqueUsers').textContent = '0';
     document.getElementById('uniqueUsersPrev').textContent = '0';
     document.getElementById('returningUsers').textContent = '0';
@@ -2080,7 +2180,7 @@ function clearDashboardData() {
     document.getElementById('avgTicket').textContent = '$0';
     document.getElementById('avgTicketPrev').textContent = '$0';
     
-    // Reset growth indicators
+    // Clear growth indicators
     document.getElementById('usersComparison').textContent = '-';
     document.getElementById('usersComparison').className = 'comparison-value';
     document.getElementById('returningUsersComparison').textContent = '-';
@@ -2099,6 +2199,7 @@ function clearDashboardData() {
     if (totalAmountChart) totalAmountChart.data.datasets[0].data = [];
     if (avgVisitsChart) avgVisitsChart.data.datasets[0].data = [];
     if (firstTimeUsersChart) firstTimeUsersChart.data.datasets[0].data = [];
+    if (avgSpendPerUserChart) avgSpendPerUserChart.data.datasets[0].data = [];
     
     // Update charts
     updateCharts([]);
