@@ -1489,6 +1489,12 @@ function updateCharts(data) {
 }
 
 function updateDashboard(data) {
+    // Remover notificación de selección de negocio si está presente
+    const notification = document.getElementById('selectBusinessNotification');
+    if (notification) {
+        notification.remove();
+    }
+    
     // Ensure data is an array
     const safeData = Array.isArray(data) ? data : [];
 
@@ -1535,6 +1541,9 @@ function updateDashboard(data) {
     const uniqueUsersPrev = new Set(previousPeriodData.map(item => item.email)).size;
     safeSetText('uniqueUsers', uniqueUsers);
     safeSetText('uniqueUsersPrev', uniqueUsersPrev);
+    
+    // Actualizar tarjetas de un solo período - Usuarios Únicos
+    safeSetText('currentUniqueUsers', uniqueUsers);
 
     // Calculate returning users
     const userVisits = {};
@@ -1560,6 +1569,9 @@ function updateDashboard(data) {
         .filter(dates => dates.size > 1).length;
     safeSetText('returningUsers', returningUsers);
     safeSetText('returningUsersPrev', returningUsersPrev);
+    
+    // Actualizar tarjetas de un solo período - Usuarios Recurrentes
+    safeSetText('currentReturningUsers', returningUsers);
 
     // Calculate total amount
     const totalAmount = filteredData.reduce((sum, item) => sum + item.amount, 0);
@@ -1572,12 +1584,21 @@ function updateDashboard(data) {
         style: 'currency',
         currency: 'USD'
     }));
+    
+    // Actualizar tarjetas de un solo período - Monto Total
+    safeSetText('currentTotalAmount', totalAmount.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }));
 
     // Calculate average visits
     const avgVisits = calculateAverageVisits(filteredData);
     const avgVisitsPrev = calculateAverageVisits(previousPeriodData);
     safeSetText('avgVisits', formatAverage(avgVisits));
     safeSetText('avgVisitsPrev', formatAverage(avgVisitsPrev));
+    
+    // Actualizar tarjetas de un solo período - Visitas Promedio
+    safeSetText('currentAvgVisits', formatAverage(avgVisits));
 
     // Calculate and update growth comparisons
     const uniqueUsersGrowth = calculateGrowth(uniqueUsers, uniqueUsersPrev);
@@ -1610,6 +1631,12 @@ function updateDashboard(data) {
         currency: 'USD'
     }));
     safeSetText('avgTicketPrev', avgTicketPrev.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }));
+    
+    // Actualizar tarjetas de un solo período - Ticket Promedio
+    safeSetText('currentAvgTicket', avgTicket.toLocaleString('en-US', {
         style: 'currency',
         currency: 'USD'
     }));
@@ -2155,7 +2182,9 @@ function clearDashboardData() {
     notificationElement.id = 'selectBusinessNotification';
     notificationElement.innerHTML = `
         <div class="notification-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"/>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/>
+            </svg>
         </div>
         <div class="notification-message">
             Por favor, selecciona un negocio específico para visualizar los datos.
@@ -2180,6 +2209,13 @@ function clearDashboardData() {
     document.getElementById('avgTicket').textContent = '$0';
     document.getElementById('avgTicketPrev').textContent = '$0';
     
+    // Limpiar valores de métricas de un solo período
+    document.getElementById('currentUniqueUsers').textContent = '0';
+    document.getElementById('currentReturningUsers').textContent = '0';
+    document.getElementById('currentTotalAmount').textContent = '$0';
+    document.getElementById('currentAvgVisits').textContent = '0';
+    document.getElementById('currentAvgTicket').textContent = '$0';
+    
     // Clear growth indicators
     document.getElementById('usersComparison').textContent = '-';
     document.getElementById('usersComparison').className = 'comparison-value';
@@ -2203,4 +2239,14 @@ function clearDashboardData() {
     
     // Update charts
     updateCharts([]);
+}
+
+function maskBusinessNameForLabels(name) {
+    const parts = name.split('-');
+    if (parts.length > 1) {
+        const business = parts.slice(0, -1).join('-');
+        const location = parts[parts.length - 1];
+        return `${'*'.repeat(Math.max(business.length - 4, 4))}-${location.trim()}`;
+    }
+    return '*'.repeat(Math.max(name.length - 4, 4));
 }
