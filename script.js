@@ -93,19 +93,68 @@ function parseCSVLine(line) {
 
 // Helper function to extract location from business name
 function extractLocation(businessName) {
+    // Caso específico para B-Duds/B-Dubs (no separar)
+    if (businessName.includes('B-Duds') || businessName.includes('B-Dubs')) {
+        return 'Unknown'; // No hay ubicación separada
+    }
+    
+    // Caso específico para Asados Gaby Dana
+    if (businessName.includes('Asados Gaby Dana')) {
+        // Si incluye un guion, la ubicación está después del guion
+        if (businessName.includes('-')) {
+            const parts = businessName.split('-');
+            return parts[parts.length - 1].trim();
+        }
+        return 'Principal'; // Ubicación por defecto si no tiene guion
+    }
+    
+    // Primero buscamos un patrón "#" seguido de números al final del nombre
+    const hashMatch = businessName.match(/(#\s*\d+|\s+#\s*\d+)$/);
+    if (hashMatch) {
+        return hashMatch[0].trim();
+    }
+    
+    // Si no hay patrón con #, intentamos con guion
     const parts = businessName.split('-');
     if (parts.length > 1) {
         return parts[parts.length - 1].trim();
     }
+    
     return 'Unknown';
 }
 
 // Helper function to extract business name without location
 function extractBusinessName(fullName) {
+    // Caso específico para B-Duds/B-Dubs (no separar)
+    if (fullName.includes('B-Dud') || fullName.includes('B-Dub')) {
+        return fullName.trim(); // Devolver el nombre completo
+    }
+    
+    // Caso específico para Laboratorio Delgado Especializado
+    if (fullName.includes('Laboratorio Delgado Especializado')) {
+        return 'Laboratorio Delgado Especializado';
+    }
+    
+    // Caso específico para Asados Gaby Dana
+    if (fullName.includes('Asados Gaby Dana')) {
+        return 'Asados Gaby Dana';
+    }
+    
+    // Primero buscamos un patrón "#" seguido de números al final del nombre
+    const hashMatch = fullName.match(/(#\s*\d+|\s+#\s*\d+)$/);
+    if (hashMatch) {
+        // Obtenemos el índice donde comienza el patrón
+        const locationIndex = fullName.lastIndexOf(hashMatch[0]);
+        // Devolvemos todo lo anterior a ese índice
+        return fullName.substring(0, locationIndex).trim();
+    }
+    
+    // Si no hay patrón con #, intentamos con guion
     const parts = fullName.split('-');
     if (parts.length > 1) {
         return parts.slice(0, -1).join('-').trim();
     }
+    
     return fullName.trim();
 }
 
