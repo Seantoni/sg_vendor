@@ -439,6 +439,67 @@
             </section>
         </div>
     </div>
+
+    <!-- Nueva sección para monitorear ventas diarias, fuera del contenedor .dashboard -->
+    <div style="width: 100%; max-width: none; box-sizing: border-box; overflow: hidden;">
+        <section class="dashboard-section daily-sales-section" style="width: 100%; max-width: none;">
+            <div class="section-header">
+                <h2>Monitoreo de Transacciones Diarias</h2>
+                <p class="section-description">Análisis del comportamiento diario de las transacciones para detectar anomalías o problemas</p>
+            </div>
+            <div class="full-width">
+                <div class="daily-sales-chart">
+                    <div class="chart-info">
+                        <i class="info-icon">!</i>
+                        <div class="tooltip">
+                            Muestra las transacciones diarias del período seleccionado. Permite identificar caídas o aumentos repentinos en las transacciones que podrían indicar problemas en el procesamiento.
+                            <br><br>
+                            <strong>Ejemplo:</strong> Una caída del 50% o más en un día en comparación con el promedio puede indicar un problema técnico o una interrupción en el servicio.
+                        </div>
+                    </div>
+                    <canvas id="dailySalesChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Panel de Reporte de Anomalías -->
+            <div class="anomaly-report-panel">
+                <div class="anomaly-header">
+                    <h3>Reporte de Anomalías Detectadas</h3>
+                    <div class="anomaly-actions">
+                        <button id="copyAnomalyReport" class="copy-report-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="currentColor"/>
+                            </svg>
+                            Copiar Reporte
+                        </button>
+                    </div>
+                </div>
+                <div class="anomaly-compact-summary" id="anomalySummaryText">
+                    <p class="anomaly-description">Este panel muestra las fechas con posibles anomalías donde las transacciones cayeron por debajo del 50% del promedio diario.</p>
+                </div>
+                <div class="anomaly-table-container">
+                    <table class="anomaly-table" id="anomalyTable">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Transacciones</th>
+                                <th>% del Promedio</th>
+                                <th>Monto Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="anomalyTableBody">
+                            <!-- Las filas de anomalías se generarán dinámicamente con JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="anomalyList" class="anomaly-list">
+                    <div class="loading-anomalies">Analizando datos en busca de anomalías...</div>
+                </div>
+                <div id="copyContent" class="copy-content"></div>
+            </div>
+        </section>
+    </div>
+
     <!-- Footer with confidentiality notice -->
     <footer class="footer">
         <div class="confidentiality-notice">

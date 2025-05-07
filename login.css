@@ -204,7 +204,7 @@ body {
     .login-button {
         padding: 16px; /* Larger touch target */
     }
-}
+} 
 
 /* Estilos para el aviso de confidencialidad en el login */
 .login-confidentiality {

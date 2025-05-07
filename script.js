@@ -23,6 +23,9 @@ let modalChart = null;
 let currentExpandedChart = null;
 let currentEnlargedChart = null;
 
+// Declaración de variables de gráficos
+let dailySalesChart;
+
 // Add this function at the top of the file
 function isAuthenticated() {
     return !!sessionStorage.getItem('token') && !!sessionStorage.getItem('isLoggedIn');
@@ -94,7 +97,7 @@ function parseCSVLine(line) {
 // Helper function to extract location from business name
 function extractLocation(businessName) {
     // Caso específico para B-Duds/B-Dubs (no separar)
-    if (businessName.includes('B-Duds') || businessName.includes('B-Dubs')) {
+    if (businessName.includes('B-Dud') || businessName.includes('B-Dub')) {
         return 'Unknown'; // No hay ubicación separada
     }
     
@@ -1416,6 +1419,12 @@ function updateCharts(data) {
                 avgSpendPerUserChart.data.datasets[0].data = [];
                 avgSpendPerUserChart.update();
             }
+            if (dailySalesChart) {
+                dailySalesChart.data.labels = [];
+                dailySalesChart.data.datasets[0].data = [];
+                dailySalesChart.data.datasets[1].data = [];
+                dailySalesChart.update();
+            }
             return;
         }
         
@@ -1532,6 +1541,9 @@ function updateCharts(data) {
 
         // Initialize all charts with the data
         initMetricsCharts(chartData);
+        
+        // Inicializar el gráfico de ventas diarias con los datos del período seleccionado
+        initDailySalesChart(data);
     } catch (error) {
         console.error('Error updating charts:', error);
     }
@@ -1805,6 +1817,9 @@ function enlargeChart(sourceChartId) {
         return;
     }
 
+    // Identificar si es el gráfico de ventas diarias
+    const isDailySalesChart = sourceChartId === 'dailySalesChart';
+
     console.log('Source chart data:', sourceChart.data);
     console.log('Source chart options:', sourceChart.options);
 
@@ -1860,7 +1875,7 @@ function enlargeChart(sourceChartId) {
                     padding: 6
                 },
                 tooltip: {
-                    enabled: false
+                    enabled: true
                 }
             },
             scales: {
@@ -1893,6 +1908,16 @@ function enlargeChart(sourceChartId) {
         },
         plugins: [ChartDataLabels]
     };
+
+    // Si es el gráfico de ventas diarias, copiar la configuración específica del tooltip
+    if (isDailySalesChart && sourceChart.options.plugins.tooltip && sourceChart.options.plugins.tooltip.callbacks) {
+        newConfig.options.plugins.tooltip.callbacks = sourceChart.options.plugins.tooltip.callbacks;
+        
+        // Preservar también la configuración de formateado de valores en el eje Y
+        if (sourceChart.options.scales.y.ticks && sourceChart.options.scales.y.ticks.callback) {
+            newConfig.options.scales.y.ticks.callback = sourceChart.options.scales.y.ticks.callback;
+        }
+    }
 
     console.log('New chart config:', newConfig);
 
@@ -2298,4 +2323,620 @@ function maskBusinessNameForLabels(name) {
         return `${'*'.repeat(Math.max(business.length - 4, 4))}-${location.trim()}`;
     }
     return '*'.repeat(Math.max(name.length - 4, 4));
+}
+
+// Función para inicializar el gráfico de ventas diarias
+function initDailySalesChart(data) {
+    // Ordenar los datos por fecha
+    const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    // Agrupar los datos por día
+    const dailyData = {};
+    sortedData.forEach(item => {
+        const dateStr = item.date.toISOString().split('T')[0];
+        if (!dailyData[dateStr]) {
+            dailyData[dateStr] = {
+                totalAmount: 0,
+                transactions: 0
+            };
+        }
+        dailyData[dateStr].totalAmount += item.amount;
+        dailyData[dateStr].transactions++;
+    });
+    
+    // Extraer los datos para el gráfico
+    const days = Object.keys(dailyData).sort();
+    const transactionsData = days.map(day => dailyData[day].transactions);
+    
+    // Calcular el promedio de transacciones diarias para el período
+    const avgDailyTransactions = transactionsData.reduce((sum, count) => sum + count, 0) / transactionsData.length || 0;
+    
+    // Crear un umbral para detectar anomalías (50% del promedio)
+    const threshold = avgDailyTransactions * 0.5;
+    const thresholdData = days.map(() => threshold);
+    
+    // Identificar días con posibles anomalías
+    const anomalyIndices = transactionsData.map((count, index) => 
+        count < threshold ? index : -1).filter(index => index !== -1);
+    
+    // Configurar y crear el gráfico
+    const ctx = document.getElementById('dailySalesChart').getContext('2d');
+    
+    if (dailySalesChart) {
+        dailySalesChart.destroy();
+    }
+    
+    // Formatear las fechas para mostrar en formato más legible
+    const formattedDays = days.map(day => {
+        const date = new Date(day);
+        return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    });
+    
+    // Crear el título del gráfico con el nombre del negocio seleccionado
+    const chartTitle = `Transacciones Diarias de ${selectedBusiness}`;
+    const chartSubtitle = 'Los puntos rojos indican posibles anomalías (transacciones por debajo del 50% del promedio)';
+    
+    dailySalesChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: formattedDays,
+            datasets: [
+                {
+                    label: 'Transacciones Diarias',
+                    data: transactionsData,
+                    backgroundColor: 'rgba(107, 100, 219, 0.2)',  // Ajustado para coincida con otros gráficos (#6B64DB)
+                    borderColor: '#6B64DB',
+                    borderWidth: 2,
+                    pointBackgroundColor: transactionsData.map((count, index) => 
+                        count < threshold ? 'rgba(255, 99, 132, 1)' : '#6B64DB'
+                    ),
+                    pointRadius: transactionsData.map((count, index) => 
+                        count < threshold ? 6 : 4
+                    ),
+                    pointHoverRadius: 8,
+                    fill: true,
+                    tension: 0.1
+                },
+                {
+                    label: 'Umbral de Anomalía (50% del promedio)',
+                    data: thresholdData,
+                    borderColor: 'rgba(255, 99, 132, 0.7)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false,
+                    pointRadius: 0,
+                    // No mostrar etiquetas para la línea de umbral
+                    datalabels: {
+                        display: false
+                    }
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 30,
+                    bottom: 40,
+                    left: 20,
+                    right: 30
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: chartTitle,
+                    font: { 
+                        size: 18, 
+                        weight: 'bold' 
+                    },
+                    padding: { 
+                        bottom: 30, 
+                        top: 10 
+                    }
+                },
+                subtitle: {
+                    display: true,
+                    text: chartSubtitle,
+                    font: {
+                        size: 12
+                    },
+                    padding: {
+                        bottom: 10
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    align: 'center',
+                    labels: {
+                        boxWidth: 12,
+                        usePointStyle: true,
+                        padding: 15,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            const index = context[0].dataIndex;
+                            return 'Fecha: ' + days[index];
+                        },
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const count = transactionsData[index];
+                            const amount = dailyData[days[index]].totalAmount;
+                            const percentOfAvg = ((count / avgDailyTransactions) * 100).toFixed(1);
+                            
+                            return [
+                                `Transacciones: ${count}`,
+                                `Monto total: ${amount.toLocaleString('en-US', {style: 'currency', currency: 'USD'})}`,
+                                `${percentOfAvg}% del promedio diario`
+                            ];
+                        }
+                    },
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: {
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 12
+                    },
+                    padding: 10,
+                    cornerRadius: 4,
+                    displayColors: false
+                },
+                datalabels: {
+                    display: true,
+                    align: 'top',
+                    anchor: 'end',
+                    offset: 5,
+                    formatter: function(value, context) {
+                        return value; // Mostrar el número de transacciones
+                    },
+                    color: function(context) {
+                        // Color rojo para anomalías, color normal para el resto
+                        return context.dataset.pointBackgroundColor[context.dataIndex];
+                    },
+                    font: {
+                        weight: 'bold',
+                        size: 11
+                    },
+                    padding: {
+                        top: 5,
+                        bottom: 5
+                    },
+                    borderRadius: 4,
+                    backgroundColor: function(context) {
+                        // Fondo blanco semitransparente para mejorar la legibilidad
+                        return 'rgba(255, 255, 255, 0.7)';
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Fecha',
+                        padding: { 
+                            top: 10, 
+                            bottom: 0 
+                        },
+                        font: {
+                            size: 12,
+                            weight: 'normal'
+                        }
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Número de Transacciones',
+                        padding: { 
+                            top: 10, 
+                            bottom: 10 
+                        },
+                        font: {
+                            size: 12,
+                            weight: 'normal'
+                        }
+                    },
+                    ticks: {
+                        padding: 5,
+                        font: {
+                            size: 11
+                        },
+                        callback: function(value) {
+                            // Mostrar valores enteros para el conteo de transacciones
+                            return Math.round(value);
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+    
+    // Si hay anomalías, mostrar una notificación en la consola
+    if (anomalyIndices.length > 0) {
+        const anomalyDates = anomalyIndices.map(index => days[index]);
+        console.warn('Posibles anomalías detectadas en las siguientes fechas:', anomalyDates);
+    }
+    
+    // Actualizar el panel de reporte de anomalías
+    updateAnomalyReport(days, anomalyIndices, dailyData, avgDailyTransactions, threshold);
+}
+
+// Función para actualizar el panel de reporte de anomalías
+function updateAnomalyReport(days, anomalyIndices, dailyData, avgDailyTransactions, threshold) {
+    const anomalyListElement = document.getElementById('anomalyList');
+    const anomalySummaryElement = document.getElementById('anomalySummaryText');
+    const anomalyTableBody = document.getElementById('anomalyTableBody');
+    const copyContentDiv = document.getElementById('copyContent');
+    const tableContainer = document.querySelector('.anomaly-table-container');
+    
+    // Limpiar contenido actual
+    anomalyListElement.innerHTML = '';
+    anomalyTableBody.innerHTML = '';
+    
+    // Si no hay anomalías, mostrar mensaje
+    if (anomalyIndices.length === 0) {
+        // Mensaje en el resumen
+        anomalySummaryElement.innerHTML = `
+            <p class="anomaly-description">No se detectaron anomalías en el período seleccionado. Las transacciones diarias están dentro de rangos normales.</p>
+        `;
+        
+        // Ocultar la tabla
+        if (tableContainer) tableContainer.style.display = 'none';
+        
+        // Mensaje en la lista
+        anomalyListElement.innerHTML = `
+            <div class="no-anomalies">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; vertical-align: -4px;">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#2c7eb9"/>
+                </svg>
+                No se detectaron anomalías en el período seleccionado. Las transacciones diarias están dentro de rangos normales.
+            </div>
+        `;
+        
+        // Actualizar el contenido copiable
+        if (copyContentDiv) {
+            copyContentDiv.textContent = `REPORTE DE ANOMALÍAS - ${selectedBusiness}
+            
+No se detectaron anomalías en el período seleccionado. Las transacciones diarias están dentro de rangos normales.`;
+        }
+        
+        return;
+    }
+    
+    // Mostrar la tabla
+    if (tableContainer) tableContainer.style.display = 'block';
+    
+    // Ordenar anomalías por severidad (% del promedio)
+    const sortedAnomalies = [...anomalyIndices].sort((a, b) => {
+        const percentA = (dailyData[days[a]].transactions / avgDailyTransactions) * 100;
+        const percentB = (dailyData[days[b]].transactions / avgDailyTransactions) * 100;
+        return percentA - percentB; // De menor a mayor (más severo primero)
+    });
+    
+    // Identificar el período (primera y última fecha)
+    const firstDate = new Date(days[0]);
+    const lastDate = new Date(days[days.length - 1]);
+    const formattedFirstDate = firstDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const formattedLastDate = lastDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    
+    // Calcular el número total de días en el período analizado
+    const totalDays = days.length;
+    const anomalyPercentage = ((sortedAnomalies.length / totalDays) * 100).toFixed(1);
+    
+    // Encontrar la anomalía más severa
+    const mostSevereIdx = sortedAnomalies[0];
+    const mostSevereDate = new Date(days[mostSevereIdx]);
+    const mostSevereFormattedDate = mostSevereDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long' });
+    const mostSevereTransactions = dailyData[days[mostSevereIdx]].transactions;
+    const mostSeverePercent = ((mostSevereTransactions / avgDailyTransactions) * 100).toFixed(1);
+    
+    // Detectar más de 4 anomalías en un período de 14 días
+    const daysArray = days.map(d => new Date(d));
+    let hasHighFrequencyAnomalies = false;
+    let highFrequencyPeriods = [];
+    
+    // Ordenar las fechas de anomalías cronológicamente
+    const anomalyDates = sortedAnomalies.map(idx => new Date(days[idx])).sort((a, b) => a - b);
+    
+    if (anomalyDates.length >= 4) {
+        for (let i = 0; i <= anomalyDates.length - 4; i++) {
+            const startDate = anomalyDates[i];
+            const endIdx = anomalyDates.findIndex(date => {
+                const diffDays = Math.floor((date - startDate) / (1000 * 60 * 60 * 24));
+                return diffDays > 14;
+            });
+            
+            const analysisPeriod = endIdx === -1 ? anomalyDates.slice(i) : anomalyDates.slice(i, endIdx);
+            
+            if (analysisPeriod.length >= 4) {
+                hasHighFrequencyAnomalies = true;
+                const periodEndDate = analysisPeriod[analysisPeriod.length - 1];
+                const periodStartFormatted = startDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const periodEndFormatted = periodEndDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const daysInPeriod = Math.floor((periodEndDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                
+                highFrequencyPeriods.push({
+                    start: periodStartFormatted,
+                    end: periodEndFormatted,
+                    count: analysisPeriod.length,
+                    days: daysInPeriod
+                });
+            }
+        }
+    }
+    
+    // Crear texto explicativo detallado
+    let detailedExplanation = `
+        <p class="anomaly-description"><strong>RESUMEN DEL ANÁLISIS:</strong> Se detectaron <strong>${sortedAnomalies.length} anomalías</strong> en un total de ${totalDays} días analizados 
+        (representan el <strong>${anomalyPercentage}%</strong> del período). Estas anomalías son días donde las transacciones cayeron por debajo del 50% del promedio diario 
+        (${Math.round(avgDailyTransactions)} transacciones).</p>
+        <p>Durante el período analizado del <strong>${formattedFirstDate} al ${formattedLastDate}</strong>, el promedio de transacciones diarias fue de <strong>${Math.round(avgDailyTransactions)}</strong>.
+        El umbral utilizado para detectar anomalías fue de <strong>${Math.round(threshold)}</strong> transacciones (50% del promedio). Todas las fechas con transacciones por debajo de este umbral se consideran anomalías.</p>
+    `;
+    
+    // Añadir detalles sobre la anomalía más severa
+    detailedExplanation += `
+        <p>La anomalía más severa se detectó el <strong>${mostSevereFormattedDate}</strong>, con solo <strong>${mostSevereTransactions} transacciones</strong> 
+        (${mostSeverePercent}% del promedio). Se recomienda investigar posibles causas como problemas técnicos, interrupciones del servicio o factores externos.</p>
+    `;
+    
+    // Añadir alerta de alta frecuencia si existen más de 4 anomalías en 14 días
+    if (hasHighFrequencyAnomalies) {
+        const mostSeriousPeriod = highFrequencyPeriods.sort((a, b) => b.count - a.count)[0];
+        
+        detailedExplanation += `
+            <div class="high-frequency-alert">
+                <p><strong>⚠️ ALERTA DE ALTA FRECUENCIA DE ANOMALÍAS:</strong> Se detectaron <strong>${mostSeriousPeriod.count} anomalías</strong> en un período de ${mostSeriousPeriod.days} días 
+                (del ${mostSeriousPeriod.start} al ${mostSeriousPeriod.end}). Esta alta concentración de anomalías sugiere un problema sistémico que requiere atención inmediata.</p>
+            </div>
+        `;
+    }
+    
+    // Actualizar el resumen con el texto explicativo
+    if (anomalySummaryElement) {
+        anomalySummaryElement.innerHTML = detailedExplanation;
+    }
+    
+    // Generar filas de la tabla para cada anomalía
+    sortedAnomalies.forEach((index, i) => {
+        if (!anomalyTableBody) return;
+        
+        const date = new Date(days[index]);
+        const formattedDate = date.toLocaleDateString('es-ES', { 
+            day: '2-digit', 
+            month: '2-digit',
+            year: 'numeric',
+            weekday: 'long'
+        });
+        
+        const transactions = dailyData[days[index]].transactions;
+        const amount = dailyData[days[index]].totalAmount;
+        const percentOfAvg = ((transactions / avgDailyTransactions) * 100).toFixed(1);
+        
+        // Determinar si es una anomalía severa (menos del 25% del promedio)
+        const isSevere = transactions < (avgDailyTransactions * 0.25);
+        
+        // Crear fila de tabla
+        const row = document.createElement('tr');
+        if (isSevere) row.classList.add('severe-anomaly');
+        
+        row.innerHTML = `
+            <td>${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}</td>
+            <td class="anomaly-transactions">${transactions}</td>
+            <td class="anomaly-percentage">${percentOfAvg}%</td>
+            <td>${amount.toLocaleString('en-US', {style: 'currency', currency: 'USD'})}</td>
+        `;
+        
+        anomalyTableBody.appendChild(row);
+    });
+    
+    // Generar versión simplificada del reporte en el panel actual
+    // Mostrar solo las 3 anomalías más severas en la lista visual
+    const topAnomalies = sortedAnomalies.slice(0, 3);
+    
+    // Si hay alerta de alta frecuencia, mostrarla primero
+    if (hasHighFrequencyAnomalies) {
+        const mostSeriousPeriod = highFrequencyPeriods.sort((a, b) => b.count - a.count)[0];
+        
+        const highFrequencyAlertHTML = `
+            <div class="anomaly-item high-frequency">
+                <div class="anomaly-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="anomaly-content">
+                    <div class="anomaly-date">⚠️ ALERTA DE ALTA FRECUENCIA</div>
+                    <div class="anomaly-detail">
+                        Se detectaron <strong>${mostSeriousPeriod.count} anomalías</strong> en un período de ${mostSeriousPeriod.days} días
+                        (${mostSeriousPeriod.start} al ${mostSeriousPeriod.end}). Esta alta concentración requiere atención inmediata.
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        anomalyListElement.insertAdjacentHTML('beforeend', highFrequencyAlertHTML);
+    }
+    
+    // Generar HTML para las anomalías más severas
+    topAnomalies.forEach(index => {
+        const date = new Date(days[index]);
+        const formattedDate = date.toLocaleDateString('es-ES', { 
+            day: '2-digit', 
+            month: '2-digit',
+            year: 'numeric',
+            weekday: 'long'
+        });
+        
+        const transactions = dailyData[days[index]].transactions;
+        const amount = dailyData[days[index]].totalAmount;
+        const percentOfAvg = ((transactions / avgDailyTransactions) * 100).toFixed(1);
+        
+        const anomalyHTML = `
+            <div class="anomaly-item">
+                <div class="anomaly-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="anomaly-content">
+                    <div class="anomaly-date">${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}</div>
+                    <div class="anomaly-detail">
+                        Solo se registraron <strong>${transactions} transacciones</strong>, representando el <strong>${percentOfAvg}%</strong> 
+                        del promedio diario (${Math.round(avgDailyTransactions)} transacciones).
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        anomalyListElement.insertAdjacentHTML('beforeend', anomalyHTML);
+    });
+    
+    // Si hay más anomalías de las que se muestran, añadir nota
+    if (sortedAnomalies.length > 3) {
+        const remainingCount = sortedAnomalies.length - 3;
+        const remainingHTML = `
+            <div class="anomaly-more">
+                <p>Hay ${remainingCount} anomalía${remainingCount > 1 ? 's' : ''} adicional${remainingCount > 1 ? 'es' : ''} en la tabla completa.</p>
+            </div>
+        `;
+        anomalyListElement.insertAdjacentHTML('beforeend', remainingHTML);
+    }
+    
+    // Crear contenido para copiar
+    if (copyContentDiv) {
+        // Calcular el porcentaje de anomalías respecto al total de días
+        const totalDays = days.length;
+        const anomalyPercentage = ((sortedAnomalies.length / totalDays) * 100).toFixed(1);
+        
+        let copyText = '';
+        
+        // Determinar el contenido según si hay alta frecuencia de anomalías o no
+        if (hasHighFrequencyAnomalies) {
+            // Obtener el período más crítico (con más anomalías)
+            const sortedHighFrequencyPeriods = highFrequencyPeriods.sort((a, b) => b.count - a.count);
+            const mostSeriousPeriod = sortedHighFrequencyPeriods[0];
+            
+            // Generar reporte conciso enfocado solo en la alerta crítica
+            copyText = `⚠️ ALERTA CRÍTICA DE ALTA FRECUENCIA DE ANOMALÍAS ⚠️
+
+TIPO DE ALERTA: Concentración anormal de interrupciones en el servicio
+NEGOCIO AFECTADO: ${selectedBusiness}
+PERÍODO CRÍTICO DETECTADO: Del ${mostSeriousPeriod.start} al ${mostSeriousPeriod.end} (${mostSeriousPeriod.days} días)
+ANOMALÍAS EN PERÍODO CRÍTICO: ${mostSeriousPeriod.count} anomalías (más de 4 anomalías en un período de 14 días)
+GRAVEDAD: ALTA - Requiere atención inmediata
+
+DETALLES TÉCNICOS:
+- Promedio diario normal de transacciones: ${Math.round(avgDailyTransactions)}
+- Umbral de detección de anomalías: ${Math.round(threshold)} transacciones (50% del promedio)
+- Anomalía más severa: ${mostSevereFormattedDate} (${mostSevereTransactions} transacciones, ${mostSeverePercent}% del promedio)
+
+Reporte generado automáticamente el ${new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`;
+        } else {
+            // Reporte estándar para casos sin alta frecuencia
+            copyText = `REPORTE DE ANOMALÍAS - ${selectedBusiness}
+Período analizado: ${formattedFirstDate} al ${formattedLastDate} (${totalDays} días en total)
+
+RESUMEN:
+Se detectaron ${sortedAnomalies.length} anomalías de un total de ${totalDays} días analizados (${anomalyPercentage}% del período).
+- Promedio diario de transacciones: ${Math.round(avgDailyTransactions)}
+- Umbral de detección de anomalías: ${Math.round(threshold)} transacciones (50% del promedio)
+- La anomalía más severa se detectó el ${mostSevereFormattedDate}, con solo ${mostSevereTransactions} transacciones (${mostSeverePercent}% del promedio).
+
+Reporte generado el ${new Date().toLocaleDateString('es-ES', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+})}.`;
+        }
+        
+        // Guardar el texto para copiar
+        copyContentDiv.textContent = copyText;
+    }
+    
+    // Configurar el botón para copiar
+    const copyButton = document.getElementById('copyAnomalyReport');
+    if (copyButton) {
+        // Eliminar listeners previos
+        const newCopyBtn = copyButton.cloneNode(true);
+        copyButton.parentNode.replaceChild(newCopyBtn, copyButton);
+        
+        // Añadir nuevo listener
+        newCopyBtn.addEventListener('click', copyAnomalyReportToClipboard);
+    }
+}
+
+// Función para copiar el reporte de anomalías al portapapeles
+function copyAnomalyReportToClipboard() {
+    const textToCopy = document.getElementById('copyContent').textContent;
+    
+    // Usar la API Clipboard si está disponible
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => showCopyMessage())
+            .catch(err => {
+                console.error('Error al copiar texto: ', err);
+                fallbackCopy(textToCopy);
+            });
+    } else {
+        fallbackCopy(textToCopy);
+    }
+}
+
+// Método alternativo para copiar texto en navegadores más antiguos
+function fallbackCopy(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showCopyMessage();
+        } else {
+            console.error('Fallback: No se pudo copiar el texto');
+        }
+    } catch (err) {
+        console.error('Fallback: Fallo al copiar', err);
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+// Mostrar mensaje de éxito al copiar
+function showCopyMessage() {
+    // Quitar mensaje anterior si existe
+    const oldMessage = document.querySelector('.copy-message');
+    if (oldMessage) {
+        document.body.removeChild(oldMessage);
+    }
+    
+    // Crear nuevo mensaje
+    const message = document.createElement('div');
+    message.className = 'copy-message';
+    message.textContent = '✓ Reporte copiado al portapapeles';
+    document.body.appendChild(message);
+    
+    // Quitar automáticamente después de la animación
+    setTimeout(() => {
+        if (document.body.contains(message)) {
+            document.body.removeChild(message);
+        }
+    }, 2000);
 }
