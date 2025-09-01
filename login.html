@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <!-- Loader overlay -->
+    <div class="loader-overlay">
+        <div class="loader-content">
+            <div class="loader"></div>
+            <div class="loader-text">Cargando...</div>
+        </div>
+    </div>
+    
+    <main class="login-page">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="logo-container">
+                    <img src="https://oferta-uploads-prod.s3.us-east-1.amazonaws.com/pictures/others/SimpleGo/SGO_Marca_7.png?_t=1745530830" alt="SimpleGo Logo" class="company-logo">
+                </div>
+                <h2>Panel de Atención a Comercios</h2>
+            </div>
+            <div class="login-box">
+                <form id="loginForm">
+                    <div class="input-group">
+                        <label for="username">Usuario</label>
+                        <input type="text" id="username" name="username" class="login-input" required autocomplete="username">
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Contraseña</label>
+                        <input type="password" id="password" name="password" class="login-input" required autocomplete="current-password">
+                    </div>
+                    <div id="loginError" class="login-error"></div>
+                    <button type="submit" class="login-button">Iniciar Sesión</button>
+                </form>
+                <!-- Aviso de confidencialidad -->
+                <div class="login-confidentiality">
+                    <p>CONFIDENCIAL: La información contenida en este sistema es estrictamente confidencial y propiedad exclusiva de SimpleGo. El acceso no autorizado está prohibido y puede dar lugar a acciones legales.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="api.js"></script>
+    <script src="login.js"></script>
+</body>
+</html>
