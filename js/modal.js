@@ -68,12 +68,22 @@ function openChartModal(sourceChartId) {
     const modal = document.getElementById('chartModal');
     const modalCanvas = document.getElementById('modalChart');
     
-    if (!modal || !modalCanvas) return;
+    if (!modal || !modalCanvas) {
+        console.error('Modal or canvas element not found');
+        return;
+    }
     
     // Get the source chart instance
     const sourceChart = getChartInstance(sourceChartId);
     if (!sourceChart) {
         console.warn('Source chart not found:', sourceChartId);
+        return;
+    }
+    
+    // Validate chart has data
+    if (!sourceChart.data || !sourceChart.data.labels || sourceChart.data.labels.length === 0) {
+        console.warn('Source chart has no data:', sourceChartId);
+        alert('Este gráfico no tiene datos para mostrar.');
         return;
     }
     
@@ -92,55 +102,137 @@ function openChartModal(sourceChartId) {
         context.clearRect(0, 0, modalCanvas.width, modalCanvas.height);
     }
     
-    // Clone the source chart data and configuration
+    // Clone the source chart data (simple shallow copy is enough for data)
     const modalConfig = {
         type: sourceChart.config.type,
         data: {
             labels: [...sourceChart.data.labels],
             datasets: sourceChart.data.datasets.map(dataset => ({
-                ...dataset,
-                data: [...dataset.data]
+                label: dataset.label,
+                data: [...dataset.data],
+                backgroundColor: dataset.backgroundColor,
+                borderColor: dataset.borderColor,
+                borderWidth: dataset.borderWidth,
+                borderRadius: dataset.borderRadius,
+                fill: dataset.fill,
+                borderDash: dataset.borderDash
             }))
         },
-        options: JSON.parse(JSON.stringify(sourceChart.config.options || {}))
-    };
-    
-    // Enhance modal chart configuration
-    modalConfig.options = modalConfig.options || {};
-    modalConfig.options.responsive = true;
-    modalConfig.options.maintainAspectRatio = false;
-    
-    // Enhanced plugins for modal view
-    modalConfig.options.plugins = modalConfig.options.plugins || {};
-    modalConfig.options.plugins.title = {
-        display: true,
-        text: getChartTitle(sourceChartId),
-        font: {
-            size: 18,
-            weight: 'bold'
-        },
-        padding: 20,
-        color: '#2d3436'
-    };
-    
-    modalConfig.options.plugins.legend = {
-        display: true,
-        position: 'top',
-        labels: {
-            font: {
-                size: 14
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: getChartTitle(sourceChartId),
+                    font: {
+                        size: 18,
+                        weight: 'bold'
+                    },
+                    padding: 20,
+                    color: '#2d3436'
+                },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        font: {
+                            size: 14
+                        },
+                        padding: 20
+                    }
+                },
+                tooltip: {
+                    enabled: true
+                }
             },
-            padding: 20
+            scales: {
+                y: { 
+                    beginAtZero: true,
+                    grid: { 
+                        color: 'rgba(0, 0, 0, 0.05)' 
+                    }
+                },
+                x: { 
+                    grid: { 
+                        display: false 
+                    } 
+                }
+            }
         }
     };
     
-    // Enhanced tooltips for modal
-    modalConfig.options.plugins.tooltip = {
-        enabled: false
-    };
+    // Restore datalabels formatter functions
+    // JSON.stringify loses function references, so we need to restore them based on chart type
+    if (sourceChartId === 'totalAmountChart' || 
+        sourceChartId === 'avgSpendPerUserChart' || 
+        sourceChartId === 'locationGMVChart' ||
+        sourceChartId === 'firstTimeUsersChart') {
+        // Currency charts - format as dollars without decimals
+        modalConfig.options.plugins.datalabels = {
+            anchor: 'end',
+            align: 'top',
+            offset: 5,
+            formatter: function (value) {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(value || 0);
+            },
+            font: { weight: 'bold', size: 14 },
+            padding: 8
+        };
+    } else if (sourceChartId === 'returningUsersPercentageChart') {
+        // Percentage chart
+        modalConfig.options.plugins.datalabels = {
+            anchor: 'end',
+            align: 'top',
+            offset: 5,
+            formatter: function (value) {
+                return value ? value.toFixed(1) + '%' : '0%';
+            },
+            font: { weight: 'bold', size: 14 },
+            padding: 8
+        };
+    } else if (sourceChartId === 'avgVisitsChart') {
+        // Average visits - show decimals
+        modalConfig.options.plugins.datalabels = {
+            anchor: 'end',
+            align: 'top',
+            offset: 5,
+            formatter: function (value) {
+                return value ? value.toFixed(2) : '0';
+            },
+            font: { weight: 'bold', size: 14 },
+            padding: 8
+        };
+    } else {
+        // Default number formatting for other charts
+        modalConfig.options.plugins.datalabels = {
+            anchor: 'end',
+            align: 'top',
+            offset: 5,
+            formatter: function (value) {
+                return value ? Math.round(value).toLocaleString() : '0';
+            },
+            font: { weight: 'bold', size: 14 },
+            padding: 8
+        };
+    }
     
-    // Create modal chart
-    Charts.modalChart = new Chart(modalCanvas, modalConfig);
+    // Create modal chart with proper plugin registration
+    modalConfig.plugins = typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [];
+    
+    try {
+        Charts.modalChart = new Chart(modalCanvas, modalConfig);
+    } catch (error) {
+        console.error('Error creating modal chart:', error);
+        console.error('Modal config:', modalConfig);
+        alert('Error al abrir el gráfico en el modal. Por favor, intenta de nuevo.');
+        closeChartModal();
+    }
 }
 
 // Function to close chart modal
@@ -193,7 +285,7 @@ function getChartTitle(canvasId) {
         'returningUsersChart': 'Usuarios Recurrentes',
         'returningUsersPercentageChart': 'Porcentaje de Usuarios Recurrentes',
         'totalAmountChart': 'Monto Total de Transacciones',
-        'firstTimeUsersChart': 'Usuarios Nuevos',
+        'firstTimeUsersChart': 'Nuevos o Reactivados',
         'avgSpendPerUserChart': 'Gasto Promedio por Usuario',
         'dailySalesChart': 'Monitoreo de Transacciones Diarias',
         'locationUsersChart': 'Usuarios Únicos por Ubicación',

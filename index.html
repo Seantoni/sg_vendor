@@ -519,6 +519,32 @@
                         <canvas id="avgVisitsChart"></canvas>
                     </div>
                 </div>
+                
+                <!-- Nuevos o Reactivados Chart -->
+                <div class="metrics-charts-grid" style="margin-top: 30px;">
+                    <div class="metrics-chart-container">
+                        <div class="chart-header">
+                            <select id="firstTimeUsersThreshold" class="filter-input" autocomplete="off">
+                                <option value="30">Después de 30 Días</option>
+                                <option value="60">Después de 60 Días</option>
+                                <option value="90">Después de 90 Días</option>
+                                <option value="120">Después de 120 Días</option>
+                                <option value="150">Después de 150 Días</option>
+                                <option value="180">Después de 180 Días</option>
+                                <option value="210">Después de 210 Días</option>
+                                <option value="240">Después de 240 Días</option>
+                                <option value="270">Después de 270 Días</option>
+                                <option value="300">Después de 300 Días</option>
+                                <option value="330">Después de 330 Días</option>
+                                <option value="360">Después de 360 Días</option>
+                            </select>
+                            <!-- Tooltip removed - replaced with chart notes -->
+                        </div>
+                        <div class="metrics-chart">
+                            <canvas id="firstTimeUsersChart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Retention Section -->
@@ -561,32 +587,6 @@
                     <div class="metrics-chart">
                         <canvas id="totalAmountChart"></canvas>
                     </div>
-                    <div class="metrics-chart-container">
-                        <div class="chart-header">
-                            <select id="firstTimeUsersThreshold" class="filter-input" autocomplete="off">
-                                <option value="30">Después de 30 Días</option>
-                                <option value="60">Después de 60 Días</option>
-                                <option value="90">Después de 90 Días</option>
-                                <option value="120">Después de 120 Días</option>
-                                <option value="150">Después de 150 Días</option>
-                                <option value="180">Después de 180 Días</option>
-                                <option value="210">Después de 210 Días</option>
-                                <option value="240">Después de 240 Días</option>
-                                <option value="270">Después de 270 Días</option>
-                                <option value="300">Después de 300 Días</option>
-                                <option value="330">Después de 330 Días</option>
-                                <option value="360">Después de 360 Días</option>
-                            </select>
-                            <!-- Tooltip removed - replaced with chart notes -->
-                        </div>
-                        <div class="metrics-chart">
-                            <canvas id="firstTimeUsersChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Nueva fila para el gráfico de gasto promedio por usuario -->
-                <div class="metrics-charts-grid" style="margin-top: 30px;">
                     <div class="metrics-chart">
                         <canvas id="avgSpendPerUserChart"></canvas>
                     </div>

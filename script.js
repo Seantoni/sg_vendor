@@ -5,11 +5,6 @@
 // Register Chart.js plugins and configure defaults when available
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof Chart !== 'undefined') {
-        // Register plugins
-        if (typeof ChartDataLabels !== 'undefined') {
-            Chart.register(ChartDataLabels);
-        }
-        
         // Set global defaults to prevent height growth
         Chart.defaults.responsive = true;
         Chart.defaults.maintainAspectRatio = false;
@@ -20,10 +15,18 @@ document.addEventListener('DOMContentLoaded', function() {
             duration: 0
         };
         
-                        // Disable tooltips globally
-        Chart.defaults.plugins.tooltip = {
-            enabled: false
-        };
+        // Enable tooltips globally with external HTML rendering
+        Chart.defaults.plugins.tooltip.enabled = true;
+        Chart.defaults.plugins.tooltip.mode = 'index';
+        Chart.defaults.plugins.tooltip.intersect = true;
+        
+        // Configure datalabels to not listen to events (prevents conflicts)
+        if (typeof ChartDataLabels !== 'undefined') {
+            Chart.defaults.plugins.datalabels = Chart.defaults.plugins.datalabels || {};
+            Chart.defaults.plugins.datalabels.listeners = {};
+        }
+        
+        console.log('✅ Chart.js defaults configured with external HTML tooltips');
     }
 });
 
@@ -42,6 +45,126 @@ function createChartTitle(titleText) {
         color: '#2d3436'
     };
 }
+
+// Get or create external tooltip element
+function getOrCreateTooltip() {
+    let tooltipEl = document.getElementById('chartjs-tooltip');
+    
+    if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.id = 'chartjs-tooltip';
+        tooltipEl.style.position = 'fixed';
+        tooltipEl.style.zIndex = '2147483647';
+        tooltipEl.style.pointerEvents = 'none';
+        tooltipEl.style.opacity = '0';
+        tooltipEl.style.transition = 'opacity 0.2s ease';
+        document.body.appendChild(tooltipEl);
+    }
+    
+    return tooltipEl;
+}
+
+// External tooltip handler for HTML tooltips
+function externalTooltipHandler(context) {
+    const {chart, tooltip} = context;
+    const tooltipEl = getOrCreateTooltip();
+    
+    // Hide if no tooltip
+    if (tooltip.opacity === 0) {
+        tooltipEl.style.opacity = '0';
+        return;
+    }
+    
+    // Set text
+    if (tooltip.body) {
+        const titleLines = tooltip.title || [];
+        const bodyLines = tooltip.body.map(b => b.lines);
+        
+        let innerHtml = '<div style="background: rgba(0, 0, 0, 0.9); color: white; border-radius: 6px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 120px;">';
+        
+        titleLines.forEach(title => {
+            innerHtml += '<div style="font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; font-size: 13px;">' + title + '</div>';
+        });
+        
+        bodyLines.forEach(body => {
+            const colors = tooltip.labelColors[0];
+            innerHtml += '<div style="display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 14px;">';
+            if (colors) {
+                innerHtml += '<span style="width: 12px; height: 12px; background: ' + colors.backgroundColor + '; border-radius: 2px; display: inline-block;"></span>';
+            }
+            innerHtml += '<span>' + body + '</span></div>';
+        });
+        
+        innerHtml += '</div>';
+        tooltipEl.innerHTML = innerHtml;
+    }
+    
+    // Position using fixed positioning relative to viewport
+    const position = chart.canvas.getBoundingClientRect();
+    const tooltipWidth = tooltipEl.offsetWidth || 150;
+    const tooltipHeight = tooltipEl.offsetHeight || 60;
+    
+    // Calculate position, keeping tooltip within viewport
+    let left = position.left + tooltip.caretX;
+    let top = position.top + tooltip.caretY - tooltipHeight - 10; // 10px offset above point
+    
+    // Adjust if tooltip would go off-screen
+    if (left + tooltipWidth > window.innerWidth) {
+        left = window.innerWidth - tooltipWidth - 10;
+    }
+    if (left < 10) {
+        left = 10;
+    }
+    if (top < 10) {
+        top = position.top + tooltip.caretY + 10; // Show below if no room above
+    }
+    
+    tooltipEl.style.opacity = '1';
+    tooltipEl.style.left = left + 'px';
+    tooltipEl.style.top = top + 'px';
+}
+
+// Helper function to create tooltip configuration with external HTML tooltip
+function createTooltipConfig(type = 'default', borderColor = '#6B64DB') {
+    return {
+        enabled: true,
+        position: 'nearest',
+        external: externalTooltipHandler,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        borderColor: borderColor,
+        borderWidth: 1,
+        padding: 12,
+        displayColors: true,
+        callbacks: {
+            label: function(context) {
+                const value = context.parsed.y || context.parsed.x || 0;
+                const datasetLabel = context.dataset.label || '';
+                
+                // Format based on chart type (check dataset label or value)
+                if (datasetLabel.includes('Monto') || datasetLabel.includes('GMV') || datasetLabel.includes('Gasto')) {
+                    return datasetLabel + ': ' + new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                    }).format(value);
+                } else if (datasetLabel.includes('Porcentaje') || datasetLabel.includes('%')) {
+                    return datasetLabel + ': ' + value.toFixed(1) + '%';
+                } else if (datasetLabel.includes('Visitas') || datasetLabel.includes('Promedio')) {
+                    return datasetLabel + ': ' + value.toFixed(2);
+                } else {
+                    return datasetLabel + ': ' + Math.round(value).toLocaleString();
+                }
+            }
+        }
+    };
+}
+
+// Make tooltip handler available globally
+window.externalTooltipHandler = externalTooltipHandler;
+window.createTooltipConfig = createTooltipConfig;
 
 // Helper function to create or update chart note
 function createChartNote(chartContainer, noteText) {
@@ -106,9 +229,7 @@ function initMetricsCharts(chartData) {
                 legend: {
                     display: false
                 },
-                tooltip: {
-                    enabled: false
-                },
+                tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -178,9 +299,7 @@ function initMetricsCharts(chartData) {
                 legend: {
                     display: false
                 },
-                tooltip: {
-                    enabled: false
-                },
+                tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -250,7 +369,7 @@ function initMetricsCharts(chartData) {
             plugins: {
                     title: createChartTitle('Visitas Promedio por Usuario'),
                     legend: { display: false },
-                    tooltip: { enabled: false },
+                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -305,7 +424,7 @@ function initMetricsCharts(chartData) {
             plugins: {
                     title: createChartTitle('Porcentaje de Usuarios Recurrentes'),
                     legend: { display: false },
-                    tooltip: { enabled: false },
+                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -360,7 +479,7 @@ function initMetricsCharts(chartData) {
             plugins: {
                 title: createChartTitle('Monto Total por Mes'),
                     legend: { display: false },
-                    tooltip: { enabled: false },
+                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -408,7 +527,7 @@ function initMetricsCharts(chartData) {
         data: {
                 labels: chartData.labels,
             datasets: [{
-                    label: 'Usuarios Nuevos',
+                    label: 'Nuevos o Reactivados',
                     data: chartData.firstTimeUsers || [],
                     backgroundColor: 'rgba(153, 102, 255, 0.7)',
                     borderColor: '#9966FF',
@@ -420,9 +539,9 @@ function initMetricsCharts(chartData) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                title: createChartTitle('Usuarios Nuevos por Mes'),
+                title: createChartTitle('Nuevos o Reactivados por Mes'),
                     legend: { display: false },
-                    tooltip: { enabled: false },
+                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -477,7 +596,7 @@ function initMetricsCharts(chartData) {
             plugins: {
                 title: createChartTitle('Gasto Promedio por Usuario'),
                     legend: { display: false },
-                    tooltip: { enabled: false },
+                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -645,8 +764,182 @@ function initDailySalesChart(data) {
     // Add chart note
     const dailySalesContainer = ctx.closest('.daily-sales-chart') || ctx.closest('.full-width');
     if (dailySalesContainer) {
-        createChartNote(dailySalesContainer, 'Análisis del comportamiento diario de las transacciones para detectar anomalías o problemas. Los puntos rojos indican días con transacciones por debajo del umbral esperado.');
+        createChartNote(dailySalesContainer, `
+            <strong>Metodología de Detección de Anomalías:</strong> Sistema automático que analiza transacciones diarias y compara contra el promedio histórico del período. 
+            <br><br>
+            <strong>Criterios de detección:</strong><br>
+            • <span style="color: #FF9F40;">🟡 Anomalía Moderada:</span> Días con 25-50% del promedio diario (posibles problemas operativos)<br>
+            • <span style="color: #FF6B6B;">🔴 Anomalía Severa:</span> Días con menos del 25% del promedio (requieren investigación inmediata)<br>
+            • <span style="color: #6B64DB;">🔵 Normal:</span> Días dentro del rango esperado (>50% del promedio)<br>
+            <br>
+            <strong>Promedio actual:</strong> ${Math.round(avgTransactions)} transacciones/día | 
+            <strong>Umbral:</strong> ${Math.round(threshold)} transacciones (50%)
+        `);
     }
+    
+    // Detect and display anomalies
+    detectAndDisplayAnomalies(sortedDates, dailyData, avgTransactions, threshold);
+}
+
+// Function to detect and display anomalies
+function detectAndDisplayAnomalies(sortedDates, dailyData, avgTransactions, threshold) {
+    const anomalies = [];
+    
+    // Find all dates with transactions below threshold
+    sortedDates.forEach(dateKey => {
+        const dayData = dailyData[dateKey];
+        if (dayData.transactions < threshold) {
+            const percentOfAverage = (dayData.transactions / avgTransactions) * 100;
+            anomalies.push({
+                date: dateKey,
+                transactions: dayData.transactions,
+                amount: dayData.amount,
+                percentOfAverage: percentOfAverage,
+                severity: percentOfAverage < 25 ? 'severe' : 'moderate'
+            });
+        }
+    });
+    
+    // Sort anomalies by severity (lowest percentage first)
+    anomalies.sort((a, b) => a.percentOfAverage - b.percentOfAverage);
+    
+    console.log(`🚨 Anomalies detected: ${anomalies.length} days below 50% threshold`);
+    
+    // Update anomaly table
+    const anomalyTableBody = document.getElementById('anomalyTableBody');
+    const anomalyList = document.getElementById('anomalyList');
+    
+    if (anomalies.length === 0) {
+        // No anomalies found
+        if (anomalyTableBody) {
+            anomalyTableBody.innerHTML = '<tr><td colspan="4" class="no-anomalies">✅ No se detectaron anomalías significativas en el período seleccionado.</td></tr>';
+        }
+        if (anomalyList) {
+            anomalyList.innerHTML = '<div class="no-anomalies">✅ Todas las transacciones diarias están dentro de los rangos esperados.</div>';
+        }
+    } else {
+        // Populate anomaly table
+        if (anomalyTableBody) {
+            anomalyTableBody.innerHTML = anomalies.map(anomaly => {
+                const date = new Date(anomaly.date);
+                const formattedDate = date.toLocaleDateString('es-MX', { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+                const rowClass = anomaly.severity === 'severe' ? 'severe-anomaly' : '';
+                
+                return `
+                    <tr class="${rowClass}">
+                        <td>${formattedDate}</td>
+                        <td class="anomaly-transactions">${anomaly.transactions}</td>
+                        <td class="anomaly-percentage">${anomaly.percentOfAverage.toFixed(1)}%</td>
+                        <td>${new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                        }).format(anomaly.amount)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Populate anomaly list (detailed view)
+        if (anomalyList) {
+            const severeAnomalies = anomalies.filter(a => a.severity === 'severe');
+            
+            if (severeAnomalies.length > 0) {
+                anomalyList.innerHTML = `
+                    <div class="high-frequency-alert">
+                        <p><strong>⚠️ Alerta:</strong> Se detectaron ${severeAnomalies.length} día(s) con caídas severas (menos del 25% del promedio).</p>
+                    </div>
+                `;
+            } else {
+                anomalyList.innerHTML = '';
+            }
+        }
+        
+        // Update summary text
+        const anomalySummaryText = document.getElementById('anomalySummaryText');
+        if (anomalySummaryText) {
+            const severeCount = anomalies.filter(a => a.severity === 'severe').length;
+            const moderateCount = anomalies.length - severeCount;
+            
+            anomalySummaryText.innerHTML = `
+                <p class="anomaly-description">
+                    Se detectaron <strong>${anomalies.length} anomalías</strong> en el período analizado 
+                    (${severeCount} severas, ${moderateCount} moderadas). 
+                    Promedio diario: <strong>${Math.round(avgTransactions)} transacciones</strong>.
+                </p>
+            `;
+        }
+    }
+    
+    // Setup copy button
+    const copyButton = document.getElementById('copyAnomalyReport');
+    if (copyButton) {
+        copyButton.onclick = function() {
+            copyAnomalyReportToClipboard(anomalies, avgTransactions);
+        };
+    }
+}
+
+// Function to copy anomaly report to clipboard
+function copyAnomalyReportToClipboard(anomalies, avgTransactions) {
+    let reportText = '📊 REPORTE DE ANOMALÍAS - SimpleGo Analytics\n';
+    reportText += '═'.repeat(60) + '\n\n';
+    reportText += `Promedio diario de transacciones: ${Math.round(avgTransactions)}\n`;
+    reportText += `Umbral de detección: ${Math.round(avgTransactions * 0.5)} transacciones (50%)\n`;
+    reportText += `Total de anomalías detectadas: ${anomalies.length}\n\n`;
+    
+    if (anomalies.length > 0) {
+        reportText += 'DETALLE DE ANOMALÍAS:\n';
+        reportText += '─'.repeat(60) + '\n\n';
+        
+        anomalies.forEach((anomaly, index) => {
+            const date = new Date(anomaly.date);
+            const formattedDate = date.toLocaleDateString('es-MX', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+            const severity = anomaly.severity === 'severe' ? '🔴 SEVERA' : '🟡 MODERADA';
+            
+            reportText += `${index + 1}. ${formattedDate} ${severity}\n`;
+            reportText += `   Transacciones: ${anomaly.transactions}\n`;
+            reportText += `   Porcentaje del promedio: ${anomaly.percentOfAverage.toFixed(1)}%\n`;
+            reportText += `   Monto total: ${new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(anomaly.amount)}\n\n`;
+        });
+    } else {
+        reportText += '✅ No se detectaron anomalías en el período analizado.\n';
+    }
+    
+    reportText += '\n' + '═'.repeat(60) + '\n';
+    reportText += `Generado: ${new Date().toLocaleString('es-MX')}\n`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(reportText).then(() => {
+        // Show success message
+        const message = document.createElement('div');
+        message.className = 'copy-message';
+        message.textContent = '✅ Reporte copiado al portapapeles';
+        document.body.appendChild(message);
+        
+        setTimeout(() => {
+            message.remove();
+        }, 2000);
+    }).catch(err => {
+        console.error('Error copying to clipboard:', err);
+        alert('No se pudo copiar el reporte. Por favor, intenta de nuevo.');
+    });
 }
 
 // Mobile handlers initialization

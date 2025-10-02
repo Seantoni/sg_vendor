@@ -12,26 +12,37 @@ function parseDate(dateStr) {
     // If standard parsing fails, try to parse DD/MM/YYYY format
     if (dateStr.includes('/')) {
         const parts = dateStr.split('/');
-        // Try both DD/MM/YYYY and MM/DD/YYYY formats
-        const dates = [
-            new Date(parts[2], parts[1] - 1, parts[0]), // DD/MM/YYYY
-            new Date(parts[2], parts[0] - 1, parts[1])  // MM/DD/YYYY
-        ];
-        
-        // Return the date that seems more reasonable (not in the future, valid day/month)
-        for (const date of dates) {
-            if (date instanceof Date && !isNaN(date) && date <= new Date()) {
-                const month = date.getMonth() + 1;
-                const day = date.getDate();
-                if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                    return date;
+        if (parts.length === 3) {
+            // Try both DD/MM/YYYY and MM/DD/YYYY formats
+            const dates = [
+                new Date(parts[2], parts[1] - 1, parts[0]), // DD/MM/YYYY
+                new Date(parts[2], parts[0] - 1, parts[1])  // MM/DD/YYYY
+            ];
+            
+            // Return the date that seems more reasonable (not in the future, valid day/month)
+            for (const date of dates) {
+                if (date instanceof Date && !isNaN(date) && date <= new Date()) {
+                    const month = date.getMonth() + 1;
+                    const day = date.getDate();
+                    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                        return date;
+                    }
                 }
             }
         }
     }
     
-    // If all else fails, try standard Date parsing
-    return new Date(dateStr);
+    // Try standard Date parsing (ISO format, etc.)
+    const standardDate = new Date(dateStr);
+    
+    // Validate the date before returning
+    if (standardDate instanceof Date && !isNaN(standardDate.getTime())) {
+        return standardDate;
+    }
+    
+    // If we couldn't parse a valid date, return null
+    console.warn('Unable to parse date:', dateStr);
+    return null;
 }
 
 // Helper function to format date to YYYY-MM

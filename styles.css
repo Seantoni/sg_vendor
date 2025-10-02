@@ -319,7 +319,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
+    overflow-x: visible;
     overflow-y: auto;
     width: 100%;
     max-width: 100%;
@@ -499,7 +499,7 @@ body {
 .dashboard-content {
     flex: 1;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: visible;
     padding: 32px;
     background: #f5f6fa;
     box-sizing: border-box;
@@ -2916,10 +2916,12 @@ html {
     font-style: italic;
     /* Ensure notes are contained within their chart containers */
     position: relative;
-    z-index: 1;
+    z-index: 0;
     /* Prevent overflow */
     max-width: 100%;
     word-wrap: break-word;
+    /* Don't block chart interactions */
+    pointer-events: none;
 }
 
 .chart-note strong {
@@ -2931,7 +2933,10 @@ html {
 /* Chart containers styling */
 canvas {
     position: relative;
-    z-index: 1;
+    z-index: 10;
+    /* Ensure canvas can receive pointer events */
+    pointer-events: auto !important;
+    cursor: pointer;
 }
 
 /* Ensure chart containers properly contain their notes */
@@ -2943,6 +2948,13 @@ canvas {
     flex-direction: column;
     /* Add margin between charts */
     margin-bottom: 40px;
+    /* Allow pointer events to pass through to canvas */
+    pointer-events: none;
+}
+
+/* But allow canvas to receive events */
+.metrics-chart canvas {
+    pointer-events: auto;
 }
 
 .metrics-chart-container {
@@ -2953,6 +2965,15 @@ canvas {
     flex-direction: column;
     /* Add margin between charts */
     margin-bottom: 40px;
+    /* Allow pointer events to pass through to canvas */
+    pointer-events: none;
+}
+
+/* But allow canvas and controls to receive events */
+.metrics-chart-container canvas,
+.metrics-chart-container .chart-header,
+.metrics-chart-container select {
+    pointer-events: auto;
 }
 
 /* Remove margin from last chart in a section */

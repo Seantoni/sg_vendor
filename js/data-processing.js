@@ -67,6 +67,9 @@ function processData(csvText) {
 
     // Process data rows
     AppState.transactionData = [];
+    let invalidDateCount = 0;
+    let invalidAmountCount = 0;
+    let excludedCount = 0;
     
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -83,7 +86,16 @@ function processData(csvText) {
                     const date = parseDate(dateStr);
                     const amount = parseFloat(amountStr);
 
-                    if (date && !isNaN(amount) && !shouldExcludeTransaction(email, dateStr)) {
+                    if (!date) {
+                        invalidDateCount++;
+                        if (invalidDateCount <= 5) {
+                            console.warn(`Invalid date at line ${i + 1}: "${dateStr}"`);
+                        }
+                    } else if (isNaN(amount)) {
+                        invalidAmountCount++;
+                    } else if (shouldExcludeTransaction(email, dateStr)) {
+                        excludedCount++;
+                    } else {
                         AppState.transactionData.push({
                             email: email,
                             merchant: merchant,
@@ -97,6 +109,13 @@ function processData(csvText) {
     }
 
     console.log(`Processed ${AppState.transactionData.length} valid transactions`);
+    if (invalidDateCount > 0) console.log(`Skipped ${invalidDateCount} rows with invalid dates`);
+    if (invalidAmountCount > 0) console.log(`Skipped ${invalidAmountCount} rows with invalid amounts`);
+    if (excludedCount > 0) console.log(`Excluded ${excludedCount} transactions`);
+    
+    if (AppState.transactionData.length === 0) {
+        throw new Error('No hay transacciones válidas para procesar. Por favor verifica el formato de los datos.');
+    }
     
     // Calculate first visit dates
     calculateFirstVisitDates(AppState.transactionData);
