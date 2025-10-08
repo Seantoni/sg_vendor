@@ -2,6 +2,7 @@
 // ===============================================
 // This file contains chart initialization functions that haven't been moved to other modules yet
 
+
 // Register Chart.js plugins and configure defaults when available
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof Chart !== 'undefined') {
@@ -15,18 +16,19 @@ document.addEventListener('DOMContentLoaded', function() {
             duration: 0
         };
         
-        // Enable tooltips globally with external HTML rendering
-        Chart.defaults.plugins.tooltip.enabled = true;
-        Chart.defaults.plugins.tooltip.mode = 'index';
-        Chart.defaults.plugins.tooltip.intersect = true;
+                        // Disable tooltips globally
+        Chart.defaults.plugins.tooltip.enabled = false;
         
-        // Configure datalabels to not listen to events (prevents conflicts)
+        // Configure datalabels – keep defaults; do NOT override listeners
         if (typeof ChartDataLabels !== 'undefined') {
             Chart.defaults.plugins.datalabels = Chart.defaults.plugins.datalabels || {};
-            Chart.defaults.plugins.datalabels.listeners = {};
+            // Ensure no custom listeners are set (avoids plugin calling undefined handlers)
+            if (Chart.defaults.plugins.datalabels.listeners) {
+                delete Chart.defaults.plugins.datalabels.listeners;
+            }
         }
         
-        console.log('✅ Chart.js defaults configured with external HTML tooltips');
+        console.log('✅ Chart.js defaults configured - tooltips disabled');
     }
 });
 
@@ -46,148 +48,7 @@ function createChartTitle(titleText) {
     };
 }
 
-// Get or create external tooltip element
-function getOrCreateTooltip() {
-    let tooltipEl = document.getElementById('chartjs-tooltip');
-    
-    if (!tooltipEl) {
-        tooltipEl = document.createElement('div');
-        tooltipEl.id = 'chartjs-tooltip';
-        tooltipEl.style.position = 'fixed';
-        tooltipEl.style.zIndex = '2147483647';
-        tooltipEl.style.pointerEvents = 'none';
-        tooltipEl.style.opacity = '0';
-        tooltipEl.style.transition = 'opacity 0.2s ease';
-        document.body.appendChild(tooltipEl);
-    }
-    
-    return tooltipEl;
-}
 
-// External tooltip handler for HTML tooltips
-function externalTooltipHandler(context) {
-    const {chart, tooltip} = context;
-    const tooltipEl = getOrCreateTooltip();
-    
-    // Hide if no tooltip
-    if (tooltip.opacity === 0) {
-        tooltipEl.style.opacity = '0';
-        return;
-    }
-    
-    // Set text
-    if (tooltip.body) {
-        const titleLines = tooltip.title || [];
-        const bodyLines = tooltip.body.map(b => b.lines);
-        
-        let innerHtml = '<div style="background: rgba(0, 0, 0, 0.9); color: white; border-radius: 6px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 120px;">';
-        
-        titleLines.forEach(title => {
-            innerHtml += '<div style="font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; font-size: 13px;">' + title + '</div>';
-        });
-        
-        bodyLines.forEach(body => {
-            const colors = tooltip.labelColors[0];
-            innerHtml += '<div style="display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 14px;">';
-            if (colors) {
-                innerHtml += '<span style="width: 12px; height: 12px; background: ' + colors.backgroundColor + '; border-radius: 2px; display: inline-block;"></span>';
-            }
-            innerHtml += '<span>' + body + '</span></div>';
-        });
-        
-        innerHtml += '</div>';
-        tooltipEl.innerHTML = innerHtml;
-    }
-    
-    // Position using fixed positioning relative to viewport
-    const position = chart.canvas.getBoundingClientRect();
-    const tooltipWidth = tooltipEl.offsetWidth || 150;
-    const tooltipHeight = tooltipEl.offsetHeight || 60;
-    
-    // Calculate position, keeping tooltip within viewport
-    let left = position.left + tooltip.caretX;
-    let top = position.top + tooltip.caretY - tooltipHeight - 10; // 10px offset above point
-    
-    // Adjust if tooltip would go off-screen
-    if (left + tooltipWidth > window.innerWidth) {
-        left = window.innerWidth - tooltipWidth - 10;
-    }
-    if (left < 10) {
-        left = 10;
-    }
-    if (top < 10) {
-        top = position.top + tooltip.caretY + 10; // Show below if no room above
-    }
-    
-    tooltipEl.style.opacity = '1';
-    tooltipEl.style.left = left + 'px';
-    tooltipEl.style.top = top + 'px';
-}
-
-// Helper function to create tooltip configuration with external HTML tooltip
-function createTooltipConfig(type = 'default', borderColor = '#6B64DB') {
-    return {
-        enabled: true,
-        position: 'nearest',
-        external: externalTooltipHandler,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        titleColor: '#fff',
-        bodyColor: '#fff',
-        borderColor: borderColor,
-        borderWidth: 1,
-        padding: 12,
-        displayColors: true,
-        callbacks: {
-            label: function(context) {
-                const value = context.parsed.y || context.parsed.x || 0;
-                const datasetLabel = context.dataset.label || '';
-                
-                // Format based on chart type (check dataset label or value)
-                if (datasetLabel.includes('Monto') || datasetLabel.includes('GMV') || datasetLabel.includes('Gasto')) {
-                    return datasetLabel + ': ' + new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: 'USD',
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                    }).format(value);
-                } else if (datasetLabel.includes('Porcentaje') || datasetLabel.includes('%')) {
-                    return datasetLabel + ': ' + value.toFixed(1) + '%';
-                } else if (datasetLabel.includes('Visitas') || datasetLabel.includes('Promedio')) {
-                    return datasetLabel + ': ' + value.toFixed(2);
-                } else {
-                    return datasetLabel + ': ' + Math.round(value).toLocaleString();
-                }
-            }
-        }
-    };
-}
-
-// Make tooltip handler available globally
-window.externalTooltipHandler = externalTooltipHandler;
-window.createTooltipConfig = createTooltipConfig;
-
-// Helper function to create or update chart note
-function createChartNote(chartContainer, noteText) {
-    // Remove old tooltip elements if they exist
-    const oldTooltipInfo = chartContainer.querySelector('.chart-info');
-    if (oldTooltipInfo) {
-        oldTooltipInfo.remove();
-    }
-    
-    // Find existing note or create new one
-    let noteElement = chartContainer.querySelector('.chart-note');
-    if (!noteElement) {
-        noteElement = document.createElement('div');
-        noteElement.className = 'chart-note';
-        chartContainer.appendChild(noteElement);
-    }
-    
-    noteElement.innerHTML = `<strong>Nota:</strong> ${noteText}`;
-    
-    // Ensure the note is positioned at the bottom of the container
-    noteElement.style.order = '999';
-    noteElement.style.marginTop = '15px';
-}
 
 // Chart initialization functions (TODO: Move these to js/charts.js)
 function initMetricsCharts(chartData) {
@@ -229,7 +90,6 @@ function initMetricsCharts(chartData) {
                 legend: {
                     display: false
                 },
-                tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -262,10 +122,12 @@ function initMetricsCharts(chartData) {
             plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
         });
         
-        // Add chart note
-        const uniqueUsersContainer = uniqueUsersCtx.closest('.metrics-chart');
-        if (uniqueUsersContainer) {
-            createChartNote(uniqueUsersContainer, 'Muestra el número total de usuarios únicos que realizaron transacciones en cada período mensual.');
+        // Add analysis including former chart note
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('uniqueUsers', chartData.labels, chartData.uniqueUsers, {
+                type: 'number',
+                note: 'Muestra el número total de usuarios únicos que realizaron transacciones en cada período mensual.'
+            });
         }
     }
 
@@ -299,7 +161,6 @@ function initMetricsCharts(chartData) {
                 legend: {
                     display: false
                 },
-                tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -332,10 +193,11 @@ function initMetricsCharts(chartData) {
             plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
         });
         
-        // Add chart note
-        const returningUsersContainer = returningUsersCtx.closest('.metrics-chart');
-        if (returningUsersContainer) {
-            createChartNote(returningUsersContainer, 'Usuarios que han realizado más de una transacción dentro de la ventana de tiempo configurada.');
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('returningUsers', chartData.labels, chartData.returningUsers, {
+                type: 'number',
+                note: 'Usuarios que han realizado más de una transacción dentro de la ventana de tiempo configurada.'
+            });
         }
     }
 
@@ -369,7 +231,6 @@ function initMetricsCharts(chartData) {
             plugins: {
                     title: createChartTitle('Visitas Promedio por Usuario'),
                     legend: { display: false },
-                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -387,10 +248,12 @@ function initMetricsCharts(chartData) {
             plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
         });
         
-        // Add chart note
-        const avgVisitsContainer = avgVisitsCtx.closest('.metrics-chart');
-        if (avgVisitsContainer) {
-            createChartNote(avgVisitsContainer, 'Promedio de visitas por usuario en cada período mensual basado en el historial de transacciones.');
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('avgVisits', chartData.labels, chartData.avgVisits, {
+                type: 'decimal',
+                suffix: ' visitas',
+                note: 'Promedio de visitas por usuario en cada período mensual basado en el historial de transacciones.'
+            });
         }
     }
 
@@ -424,7 +287,6 @@ function initMetricsCharts(chartData) {
             plugins: {
                     title: createChartTitle('Porcentaje de Usuarios Recurrentes'),
                     legend: { display: false },
-                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -442,10 +304,11 @@ function initMetricsCharts(chartData) {
             plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
         });
         
-        // Add chart note
-        const returningUsersPercentageContainer = returningUsersPercentageCtx.closest('.metrics-chart');
-        if (returningUsersPercentageContainer) {
-            createChartNote(returningUsersPercentageContainer, 'Porcentaje de usuarios recurrentes respecto al total de usuarios únicos en cada período.');
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('returningPercentage', chartData.labels, chartData.returningUsersPercentage, {
+                type: 'percentage',
+                note: 'Porcentaje de usuarios recurrentes respecto al total de usuarios únicos en cada período.'
+            });
         }
     }
 
@@ -479,7 +342,6 @@ function initMetricsCharts(chartData) {
             plugins: {
                 title: createChartTitle('Monto Total por Mes'),
                     legend: { display: false },
-                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -504,10 +366,12 @@ function initMetricsCharts(chartData) {
             plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
         });
         
-        // Add chart note
-        const totalAmountContainer = totalAmountCtx.closest('.metrics-chart');
-        if (totalAmountContainer) {
-            createChartNote(totalAmountContainer, 'Monto total de transacciones procesadas en cada período mensual (GMV - Gross Merchandise Value).');
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('totalAmount', chartData.labels, chartData.totalAmount, {
+                type: 'currency',
+                prefix: '$',
+                note: 'Monto total de transacciones procesadas en cada período mensual (GMV - Gross Merchandise Value).'
+            });
         }
     }
 
@@ -541,7 +405,6 @@ function initMetricsCharts(chartData) {
             plugins: {
                 title: createChartTitle('Nuevos o Reactivados por Mes'),
                     legend: { display: false },
-                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -559,11 +422,14 @@ function initMetricsCharts(chartData) {
             plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
         });
         
-        // Add chart note
-        const firstTimeUsersContainer = firstTimeUsersCtx.closest('.metrics-chart');
-        if (firstTimeUsersContainer) {
-            createChartNote(firstTimeUsersContainer, 'Usuarios que realizan su primera transacción basado en el umbral de tiempo configurado para usuarios primerizos.');
+        // Generate and display analysis with note
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('firstTimeUsers', chartData.labels, chartData.firstTimeUsers, {
+                type: 'number',
+                note: 'Usuarios que realizan su primera transacción basado en el umbral de tiempo configurado para usuarios primerizos. Usa el botón "Ver Detalle de Cálculo por Mes" para analizar qué usuarios califican en cada mes.'
+            });
         }
+        generateFirstTimeUsersAnalysis(chartData.labels, chartData.firstTimeUsers);
     }
 
     // Initialize average spend per user chart
@@ -596,7 +462,6 @@ function initMetricsCharts(chartData) {
             plugins: {
                 title: createChartTitle('Gasto Promedio por Usuario'),
                     legend: { display: false },
-                    tooltip: createTooltipConfig('default', '#6B64DB'),
                 datalabels: {
                     anchor: 'end',
                     align: 'top',
@@ -621,10 +486,12 @@ function initMetricsCharts(chartData) {
             plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
         });
         
-        // Add chart note
-        const avgSpendContainer = avgSpendPerUserCtx.closest('.metrics-chart');
-        if (avgSpendContainer) {
-            createChartNote(avgSpendContainer, 'Gasto promedio por usuario calculado dividiendo el GMV total entre el número de usuarios únicos por período.');
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('avgSpend', chartData.labels, chartData.avgSpendPerUser, {
+                type: 'currency',
+                prefix: '$',
+                note: 'Gasto promedio por usuario calculado dividiendo el GMV total entre el número de usuarios únicos por período.'
+            });
         }
     }
 }
@@ -761,11 +628,11 @@ function initDailySalesChart(data) {
         plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
     });
     
-    // Add chart note
-    const dailySalesContainer = ctx.closest('.daily-sales-chart') || ctx.closest('.full-width');
-    if (dailySalesContainer) {
-        createChartNote(dailySalesContainer, `
-            <strong>Metodología de Detección de Anomalías:</strong> Sistema automático que analiza transacciones diarias y compara contra el promedio histórico del período. 
+    // Generate analysis with note
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('dailySales', sortedDates.map(date => new Date(date).toLocaleDateString()), transactions, {
+            type: 'number',
+            note: `<strong>Metodología de Detección de Anomalías:</strong> Sistema automático que analiza transacciones diarias y compara contra el promedio histórico del período. 
             <br><br>
             <strong>Criterios de detección:</strong><br>
             • <span style="color: #FF9F40;">🟡 Anomalía Moderada:</span> Días con 25-50% del promedio diario (posibles problemas operativos)<br>
@@ -773,8 +640,8 @@ function initDailySalesChart(data) {
             • <span style="color: #6B64DB;">🔵 Normal:</span> Días dentro del rango esperado (>50% del promedio)<br>
             <br>
             <strong>Promedio actual:</strong> ${Math.round(avgTransactions)} transacciones/día | 
-            <strong>Umbral:</strong> ${Math.round(threshold)} transacciones (50%)
-        `);
+            <strong>Umbral:</strong> ${Math.round(threshold)} transacciones (50%)`
+        });
     }
     
     // Detect and display anomalies
@@ -941,6 +808,255 @@ function copyAnomalyReportToClipboard(anomalies, avgTransactions) {
         alert('No se pudo copiar el reporte. Por favor, intenta de nuevo.');
     });
 }
+
+// Month selector functions
+function openMonthSelector() {
+    const modal = document.getElementById('monthSelectorModal');
+    const grid = document.getElementById('monthSelectorGrid');
+    
+    if (!modal || !grid) return;
+    
+    // Get available months from debug data
+    const availableMonths = Object.keys(window.firstTimeUsersDebugData || {}).sort();
+    
+    if (availableMonths.length === 0) {
+        grid.innerHTML = '<p style="text-align: center; padding: 40px; color: #636e72;">No hay datos disponibles. Por favor, selecciona un negocio y período primero.</p>';
+    } else {
+        // Create month buttons
+        grid.innerHTML = availableMonths.map(monthKey => {
+            const monthDate = new Date(monthKey + '-01');
+            const monthName = monthDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+            const count = window.firstTimeUsersDebugData[monthKey].filter(u => u.qualifies).length;
+            const total = window.firstTimeUsersDebugData[monthKey].length;
+            
+            return `
+                <button class="month-selector-btn" onclick="selectMonthForDebug('${monthKey}')">
+                    <div class="month-name">${monthName}</div>
+                    <div class="month-stats">${count} de ${total} usuarios</div>
+                </button>
+            `;
+        }).join('');
+    }
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMonthSelector() {
+    const modal = document.getElementById('monthSelectorModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
+function selectMonthForDebug(monthKey) {
+    closeMonthSelector();
+    setTimeout(() => {
+        showDebugModal(monthKey);
+    }, 300);
+}
+
+// Debug modal functions for "Nuevos o Reactivados" chart
+function showDebugModal(monthKey) {
+    const modal = document.getElementById('debugModal');
+    const debugData = window.firstTimeUsersDebugData[monthKey] || [];
+    
+    if (!modal) return;
+    
+    // Update title
+    const title = document.getElementById('debugModalTitle');
+    const subtitle = document.getElementById('debugModalSubtitle');
+    if (title) title.textContent = `Nuevos o Reactivados - ${monthKey}`;
+    if (subtitle) subtitle.textContent = `Análisis detallado de usuarios que califican en este mes`;
+    
+    // Update stats
+    const qualified = debugData.filter(d => d.qualifies).length;
+    const total = debugData.length;
+    
+    const debugTotalUsers = document.getElementById('debugTotalUsers');
+    const debugThreshold = document.getElementById('debugThreshold');
+    const debugBusiness = document.getElementById('debugBusiness');
+    
+    if (debugTotalUsers) debugTotalUsers.textContent = `${qualified} de ${total}`;
+    if (debugThreshold) debugThreshold.textContent = `${AppState.firstTimeUsersThreshold || 0} días`;
+    if (debugBusiness) debugBusiness.textContent = AppState.selectedBusiness || 'Todos';
+    
+    // Populate table with privacy-friendly user codes
+    const tableBody = document.getElementById('debugTableBody');
+    if (tableBody) {
+        if (debugData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #636e72;">No hay datos para este mes</td></tr>';
+        } else {
+            tableBody.innerHTML = debugData.map(user => {
+                const rowClass = user.qualifies ? 'debug-row-success' : 'debug-row-excluded';
+                // Get privacy-friendly user code and extract just the number
+                const fullUserCode = window.emailToUserCode && window.emailToUserCode.get(user.email) || 'Usuario #?';
+                const userNumber = fullUserCode.replace('Usuario #', ''); // Just show the number
+                return `
+                    <tr class="${rowClass}">
+                        <td class="user-id-cell"><strong>#${userNumber}</strong></td>
+                        <td>${user.globalFirst.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                        <td>${user.daysSinceProgramEntry} días</td>
+                        <td>${user.transactionDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                        <td>${user.reason}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    }
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDebugModal() {
+    const modal = document.getElementById('debugModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
+// Make functions globally available
+window.openMonthSelector = openMonthSelector;
+window.closeMonthSelector = closeMonthSelector;
+window.selectMonthForDebug = selectMonthForDebug;
+window.showDebugModal = showDebugModal;
+window.closeDebugModal = closeDebugModal;
+
+// Initialize debug button listener
+document.addEventListener('DOMContentLoaded', function() {
+    const debugButton = document.getElementById('openDebugSelector');
+    if (debugButton) {
+        debugButton.addEventListener('click', openMonthSelector);
+    }
+});
+
+// Function to generate analysis for First Time Users chart
+function generateFirstTimeUsersAnalysis(labels, firstTimeData) {
+    const analysisPanel = document.getElementById('firstTimeUsersAnalysis');
+    if (!analysisPanel || !firstTimeData || firstTimeData.length === 0) return;
+    
+    // Get unique users data from the chart for comparison
+    const uniqueUsersData = Charts.uniqueUsersChart ? 
+        Charts.uniqueUsersChart.data.datasets[0].data : [];
+    
+    const total = firstTimeData.reduce((sum, val) => sum + val, 0);
+    const avg = total / firstTimeData.length;
+    const max = Math.max(...firstTimeData);
+    const maxMonth = labels[firstTimeData.indexOf(max)];
+    
+    // Calculate trend (last 2 vs first 2 months)
+    let trendIcon = 'fa-minus';
+    let trendClass = 'neutral';
+    let trendText = 'estable';
+    
+    if (firstTimeData.length >= 4) {
+        const recent = firstTimeData.slice(-2).reduce((a, b) => a + b, 0) / 2;
+        const older = firstTimeData.slice(0, 2).reduce((a, b) => a + b, 0) / 2;
+        if (recent > older * 1.15) {
+            trendIcon = 'fa-arrow-trend-up';
+            trendClass = 'positive';
+            trendText = 'creciente';
+        } else if (recent < older * 0.85) {
+            trendIcon = 'fa-arrow-trend-down';
+            trendClass = 'negative';
+            trendText = 'decreciente';
+        }
+    }
+    
+    // Calculate percentage of total users for each month
+    const percentages = firstTimeData.map((newUsers, idx) => {
+        const totalUsers = uniqueUsersData[idx] || 0;
+        return totalUsers > 0 ? (newUsers / totalUsers) * 100 : 0;
+    });
+    
+    const avgPercentage = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+    const maxPercentage = Math.max(...percentages);
+    const maxPercentageMonth = labels[percentages.indexOf(maxPercentage)];
+    const maxPercentageUsers = firstTimeData[percentages.indexOf(maxPercentage)];
+    const maxPercentageTotalUsers = uniqueUsersData[percentages.indexOf(maxPercentage)];
+    
+    // Generate compact bullet points
+    let bullets = [];
+    
+    // Performance bullet
+    if (total === 0) {
+        bullets.push(`<i class="fas fa-times-circle"></i> Sin usuarios nuevos/reactivados detectados con umbral de ${AppState.firstTimeUsersThreshold || 0} días`);
+    } else {
+        bullets.push(`<i class="fas fa-users"></i> Promedio: <strong>${Math.round(avg)} usuarios/mes</strong> (${avgPercentage.toFixed(0)}% del total)`);
+    }
+    
+    // Trend bullet
+    bullets.push(`<i class="fas ${trendIcon}"></i> Tendencia: <strong class="trend-${trendClass}">${trendText}</strong>`);
+    
+    // Best month bullet with comparison
+    if (max > 0 && maxPercentageTotalUsers > 0) {
+        bullets.push(`<i class="fas fa-trophy"></i> Mejor mes: <strong>${maxMonth}</strong> con ${maxPercentageUsers} usuarios (<strong>${maxPercentage.toFixed(0)}%</strong> de ${maxPercentageTotalUsers} usuarios únicos)`);
+    }
+    
+    // Generate monthly breakdown
+    let monthlyBreakdown = '';
+    if (firstTimeData.length > 0 && firstTimeData.length <= 12) {
+        const monthlyItems = labels.map((month, idx) => {
+            const newUsers = firstTimeData[idx];
+            const totalUsers = uniqueUsersData[idx] || 0;
+            const percentage = totalUsers > 0 ? (newUsers / totalUsers) * 100 : 0;
+            const monthName = new Date(month + '-01').toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
+            
+            // Determine icon based on percentage
+            let icon = 'fa-circle';
+            let iconClass = '';
+            if (percentage >= 50) {
+                icon = 'fa-circle-check';
+                iconClass = 'icon-high';
+            } else if (percentage >= 25) {
+                icon = 'fa-circle';
+                iconClass = 'icon-medium';
+            } else if (newUsers > 0) {
+                icon = 'fa-circle';
+                iconClass = 'icon-low';
+            } else {
+                icon = 'fa-circle-xmark';
+                iconClass = 'icon-none';
+            }
+            
+            return `<span class="monthly-item"><i class="fas ${icon} ${iconClass}"></i> <strong>${monthName}:</strong> ${newUsers} (${percentage.toFixed(0)}% de ${totalUsers})</span>`;
+        }).join('');
+        
+        monthlyBreakdown = `
+            <div class="monthly-breakdown">
+                <div class="monthly-breakdown-header">
+                    <i class="fas fa-calendar-days"></i>
+                    <span>Desglose Mensual</span>
+                </div>
+                <div class="monthly-grid">
+                    ${monthlyItems}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Generate HTML
+    analysisPanel.innerHTML = `
+        <div class="analysis-compact">
+            <div class="analysis-compact-header">
+                <i class="fas fa-chart-line"></i>
+                <span>Análisis Rápido</span>
+            </div>
+            <ul class="analysis-bullets">
+                ${bullets.map(bullet => `<li>${bullet}</li>`).join('')}
+            </ul>
+            ${monthlyBreakdown}
+        </div>
+    `;
+}
+
+// Make function globally available
+window.generateFirstTimeUsersAnalysis = generateFirstTimeUsersAnalysis;
 
 // Mobile handlers initialization
 function initializeMobileHandlers() {

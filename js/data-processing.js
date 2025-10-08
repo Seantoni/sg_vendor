@@ -7,6 +7,24 @@ function calculateFirstVisitDates(transactions) {
     AppState.globalUserFirstVisit.clear();
     AppState.globalUserBusinessFirstVisit.clear();
 
+    // Create email-to-code mapping for privacy (in order of first appearance)
+    if (!window.emailToUserCode) {
+        window.emailToUserCode = new Map();
+        let userCodeCounter = 1;
+        
+        // Sort transactions by date to assign codes in chronological order
+        const sortedTx = [...transactions].sort((a, b) => a.date - b.date);
+        
+        sortedTx.forEach(item => {
+            if (!window.emailToUserCode.has(item.email)) {
+                window.emailToUserCode.set(item.email, `Usuario #${userCodeCounter}`);
+                userCodeCounter++;
+            }
+        });
+        
+        console.log(`📋 Created privacy codes for ${window.emailToUserCode.size} users`);
+    }
+
     // Process each transaction to find first visits
     transactions.forEach(item => {
         const email = item.email;
@@ -164,34 +182,102 @@ function filterAndUpdateDashboard() {
         filteredData = filteredData.filter(item => {
             const businessName = extractBusinessName(item.merchant);
             const location = extractLocation(item.merchant);
-            const businessMatch = AppState.selectedBusiness === 'all' || businessName === AppState.selectedBusiness;
+            
+            let businessMatch = false;
+            
+            if (AppState.selectedBusiness === 'all') {
+                businessMatch = true;
+            } else {
+                // Exact match
+                if (businessName === AppState.selectedBusiness) {
+                    businessMatch = true;
+                } else {
+                    // Check if they belong to the same business group (handle typos/encoding)
+                    const normalizedSelectedBusiness = normalizeBusinessName(AppState.selectedBusiness);
+                    const normalizedBusinessName = normalizeBusinessName(businessName);
+                    
+                    if (normalizedBusinessName === normalizedSelectedBusiness) {
+                        businessMatch = true;
+                    } else {
+                        // Additional check: see if they're in the same similarity group
+                        if (window.businessGroups) {
+                            const selectedGroup = window.businessGroups.find(group => 
+                                group.all.includes(AppState.selectedBusiness)
+                            );
+                            
+                            if (selectedGroup && selectedGroup.all.includes(businessName)) {
+                                businessMatch = true;
+                            }
+                        } else {
+                            // Fallback: use similarity function directly
+                            const allBusinesses = [...new Set(AppState.transactionData.map(item => extractBusinessName(item.merchant)))];
+                            const similarToSelected = findSimilarBusinesses(AppState.selectedBusiness, allBusinesses, 0.85);
+                            
+                            if (similarToSelected.includes(businessName)) {
+                                businessMatch = true;
+                            }
+                        }
+                    }
+                }
+            }
+            
             const locationMatch = AppState.selectedLocation === 'all' || location === AppState.selectedLocation;
             return businessMatch && locationMatch;
         });
     }
 
-    // If no date ranges are selected and we have data, set default periods
+    // Apply date filtering if date ranges are selected
+    if (AppState.currentDateRange && AppState.currentDateRange.length === 2) {
+        const [currentStart, currentEnd] = AppState.currentDateRange;
+        filteredData = filteredData.filter(item => {
+            const itemDate = parseDate(item.date);
+            if (!itemDate) return false;
+            
+            // Check if item date is within current date range
+            return itemDate >= currentStart && itemDate <= currentEnd;
+        });
+    }
+
+    // If no date ranges are selected and we have data, set default periods to month ranges
     if ((!AppState.currentDateRange || AppState.currentDateRange.length !== 2) && filteredData.length > 0) {
         const sortedData = [...filteredData].sort((a, b) => a.date - b.date);
-        const firstTransactionDate = new Date(sortedData[0].date);
         const lastTransactionDate = new Date(sortedData[sortedData.length - 1].date);
 
-        // Set current period to last 30 days of data
-        const currentEnd = lastTransactionDate;
-        const currentStart = new Date(currentEnd);
-        currentStart.setDate(currentStart.getDate() - 29);
+        // Set current period to the last transaction's month (single month as default)
+        const currentStartMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth(), 1);
+        const currentEndMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth(), 1);
+        
+        const currentStart = new Date(currentStartMonth.getFullYear(), currentStartMonth.getMonth(), 1);
+        const currentEnd = new Date(currentEndMonth.getFullYear(), currentEndMonth.getMonth() + 1, 0, 23, 59, 59, 999);
 
         AppState.currentDateRange = [currentStart, currentEnd];
-        DatePickers.currentDatePicker.setDate([currentStart, currentEnd]);
+        DatePickers.currentDatePicker.setDate([currentStartMonth, currentEndMonth]);
+        
+        const currentInput = document.querySelector('#currentDateRange');
+        if (currentInput) {
+            currentInput.value = lastTransactionDate.toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric'
+            });
+        }
 
-        // Set previous period
-        const previousEnd = new Date(currentStart);
-        previousEnd.setDate(previousEnd.getDate() - 1);
-        const previousStart = new Date(previousEnd);
-        previousStart.setDate(previousStart.getDate() - 29);
+        // Set previous period to the previous month (same duration - 1 month)
+        const previousStartMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth() - 1, 1);
+        const previousEndMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth() - 1, 1);
+        
+        const previousStart = new Date(previousStartMonth.getFullYear(), previousStartMonth.getMonth(), 1);
+        const previousEnd = new Date(previousEndMonth.getFullYear(), previousEndMonth.getMonth() + 1, 0, 23, 59, 59, 999);
 
         AppState.previousDateRange = [previousStart, previousEnd];
-        DatePickers.previousDatePicker.setDate([previousStart, previousEnd]);
+        DatePickers.previousDatePicker.setDate([previousStartMonth, previousEndMonth]);
+        
+        const previousInput = document.querySelector('#previousDateRange');
+        if (previousInput) {
+            previousInput.value = previousStartMonth.toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric'
+            });
+        }
     }
 
     // Update the dashboard with filtered data

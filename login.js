@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginButton = document.querySelector('.login-button');
     const loginError = document.getElementById('loginError');
     const loaderOverlay = document.querySelector('.loader-overlay');
+    const usernameInput = document.getElementById('username');
+    const rememberMeCheckbox = document.getElementById('rememberMe');
 
     // Function to show loader
     function showLoader() {
@@ -24,12 +26,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hide loader initially
     hideLoader();
+    
+    // Load remembered username if exists
+    const rememberedUsername = localStorage.getItem('rememberedUsername');
+    const shouldRemember = localStorage.getItem('rememberMe') === 'true';
+    
+    if (rememberedUsername && shouldRemember) {
+        usernameInput.value = rememberedUsername;
+        rememberMeCheckbox.checked = true;
+        // Focus on password field if username is pre-filled
+        document.getElementById('password').focus();
+    } else {
+        rememberMeCheckbox.checked = false;
+    }
 
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
+        const rememberMe = document.getElementById('rememberMe').checked;
 
         // Clear previous error
         loginError.textContent = '';
@@ -54,6 +70,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Extract username from token if needed for display
                 // Could also store username separately if needed
                 sessionStorage.setItem('userDisplayName', username);
+
+                // Handle "Remember me" functionality
+                if (rememberMe) {
+                    localStorage.setItem('rememberedUsername', username);
+                    localStorage.setItem('rememberMe', 'true');
+                } else {
+                    localStorage.removeItem('rememberedUsername');
+                    localStorage.removeItem('rememberMe');
+                }
 
                 // Clear sensitive data
                 document.getElementById('password').value = '';

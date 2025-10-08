@@ -63,9 +63,45 @@ function initLocationUsersChart(data) {
         const location = extractLocation(item.merchant);
         const email = item.email;
 
-        // Filter by selected business if one is selected
-        if (AppState.selectedBusiness !== 'all' && businessName !== AppState.selectedBusiness) {
-            return; // Skip this item if it doesn't match the selected business
+        // Filter by selected business if one is selected (using business group logic)
+        if (AppState.selectedBusiness !== 'all') {
+            let businessMatch = false;
+            
+            // Exact match
+            if (businessName === AppState.selectedBusiness) {
+                businessMatch = true;
+            } else {
+                // Check if they belong to the same business group (handle typos/encoding)
+                const normalizedSelectedBusiness = normalizeBusinessName(AppState.selectedBusiness);
+                const normalizedBusinessName = normalizeBusinessName(businessName);
+                
+                if (normalizedBusinessName === normalizedSelectedBusiness) {
+                    businessMatch = true;
+                } else {
+                    // Additional check: see if they're in the same similarity group
+                    if (window.businessGroups) {
+                        const selectedGroup = window.businessGroups.find(group => 
+                            group.all.includes(AppState.selectedBusiness)
+                        );
+                        
+                        if (selectedGroup && selectedGroup.all.includes(businessName)) {
+                            businessMatch = true;
+                        }
+                    } else {
+                        // Fallback: use similarity function directly
+                        const allBusinesses = [...new Set(AppState.transactionData.map(item => extractBusinessName(item.merchant)))];
+                        const similarToSelected = findSimilarBusinesses(AppState.selectedBusiness, allBusinesses, 0.85);
+                        
+                        if (similarToSelected.includes(businessName)) {
+                            businessMatch = true;
+                        }
+                    }
+                }
+            }
+            
+            if (!businessMatch) {
+                return; // Skip this item if it doesn't match the selected business
+            }
         }
 
         const month = formatYearMonth(date);
@@ -100,10 +136,6 @@ function initLocationUsersChart(data) {
     // Sort locations by total users (descending - highest at top)
     const locations = Object.keys(processedData).sort((a, b) => locationTotals[b] - locationTotals[a]);
     
-    // Debug: Log locations to see what we have
-    console.log('Location Users Chart - Locations found (sorted):', locations);
-    console.log('Location Users Chart - Location totals:', locationTotals);
-    
     const datasets = months.map((month, index) => ({
         label: month,
         data: locations.map(location => processedData[location][month] || 0),
@@ -113,6 +145,7 @@ function initLocationUsersChart(data) {
         borderRadius: 4,
     }));
 
+    
     Charts.locationUsersChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -156,11 +189,6 @@ function initLocationUsersChart(data) {
                         size: 11
                     },
                     color: '#2d3436'
-                },
-                tooltip: {
-                    enabled: true,
-                    position: 'nearest',
-                    external: externalTooltipHandler
                 }
             },
             scales: {
@@ -194,8 +222,12 @@ function initLocationUsersChart(data) {
     
     // Add chart note
     const locationUsersContainer = ctx.closest('.full-width') || ctx.closest('.metrics-chart');
-    if (locationUsersContainer) {
-        createChartNote(locationUsersContainer, 'Distribución de usuarios únicos por ubicación geográfica acumulada durante todo el período seleccionado.');
+    if (locationUsersContainer && window.generateChartAnalysis) {
+        const values = locations.map(location => locationTotals[location]);
+        window.generateChartAnalysis('locationUsers', locations, values, {
+            type: 'number',
+            note: 'Distribución de usuarios únicos por ubicación geográfica acumulada durante todo el período seleccionado.'
+        });
     }
 }
 
@@ -228,9 +260,45 @@ function initLocationGMVChart(data) {
         const location = extractLocation(item.merchant);
         const amount = parseFloat(item.amount) || 0;
 
-        // Filter by selected business if one is selected
-        if (AppState.selectedBusiness !== 'all' && businessName !== AppState.selectedBusiness) {
-            return; // Skip this item if it doesn't match the selected business
+        // Filter by selected business if one is selected (using business group logic)
+        if (AppState.selectedBusiness !== 'all') {
+            let businessMatch = false;
+            
+            // Exact match
+            if (businessName === AppState.selectedBusiness) {
+                businessMatch = true;
+            } else {
+                // Check if they belong to the same business group (handle typos/encoding)
+                const normalizedSelectedBusiness = normalizeBusinessName(AppState.selectedBusiness);
+                const normalizedBusinessName = normalizeBusinessName(businessName);
+                
+                if (normalizedBusinessName === normalizedSelectedBusiness) {
+                    businessMatch = true;
+                } else {
+                    // Additional check: see if they're in the same similarity group
+                    if (window.businessGroups) {
+                        const selectedGroup = window.businessGroups.find(group => 
+                            group.all.includes(AppState.selectedBusiness)
+                        );
+                        
+                        if (selectedGroup && selectedGroup.all.includes(businessName)) {
+                            businessMatch = true;
+                        }
+                    } else {
+                        // Fallback: use similarity function directly
+                        const allBusinesses = [...new Set(AppState.transactionData.map(item => extractBusinessName(item.merchant)))];
+                        const similarToSelected = findSimilarBusinesses(AppState.selectedBusiness, allBusinesses, 0.85);
+                        
+                        if (similarToSelected.includes(businessName)) {
+                            businessMatch = true;
+                        }
+                    }
+                }
+            }
+            
+            if (!businessMatch) {
+                return; // Skip this item if it doesn't match the selected business
+            }
         }
 
         const month = formatYearMonth(date);
@@ -278,6 +346,7 @@ function initLocationGMVChart(data) {
         borderRadius: 4,
     }));
 
+    
     Charts.locationGMVChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -325,11 +394,6 @@ function initLocationGMVChart(data) {
                     },
                     padding: 6,
                     color: '#2d3436'
-                },
-                tooltip: {
-                    enabled: true,
-                    position: 'nearest',
-                    external: externalTooltipHandler
                 }
             },
             scales: {
@@ -368,33 +432,16 @@ function initLocationGMVChart(data) {
     
     // Add chart note
     const locationGMVContainer = ctx.closest('.full-width') || ctx.closest('.metrics-chart');
-    if (locationGMVContainer) {
-        createChartNote(locationGMVContainer, 'Valor Bruto de Mercancía (GMV) por ubicación geográfica, mostrando el monto total transaccionado en cada región.');
+    if (locationGMVContainer && window.generateChartAnalysis) {
+        const values = locations.map(location => locationTotals[location]);
+        window.generateChartAnalysis('locationGMV', locations, values, {
+            type: 'currency',
+            prefix: '$',
+            note: 'Valor Bruto de Mercancía (GMV) por ubicación geográfica, mostrando el monto total transaccionado en cada región.'
+        });
     }
 }
 
-// Helper function to create or update chart note
-function createChartNote(chartContainer, noteText) {
-    // Remove old tooltip elements if they exist
-    const oldTooltipInfo = chartContainer.querySelector('.chart-info');
-    if (oldTooltipInfo) {
-        oldTooltipInfo.remove();
-    }
-    
-    // Find existing note or create new one
-    let noteElement = chartContainer.querySelector('.chart-note');
-    if (!noteElement) {
-        noteElement = document.createElement('div');
-        noteElement.className = 'chart-note';
-        chartContainer.appendChild(noteElement);
-    }
-    
-    noteElement.innerHTML = `<strong>Nota:</strong> ${noteText}`;
-    
-    // Ensure the note is positioned at the bottom of the container
-    noteElement.style.order = '999';
-    noteElement.style.marginTop = '15px';
-}
 
 // Function to initialize monthly projection chart
 function initMonthlyProjectionChart(data) {
@@ -667,11 +714,6 @@ function initMonthlyProjectionChart(data) {
                 legend: {
                     display: true,
                     position: 'top'
-                },
-                tooltip: {
-                    enabled: true,
-                    position: 'nearest',
-                    external: externalTooltipHandler
                 }
             },
             scales: {
@@ -707,7 +749,12 @@ function initMonthlyProjectionChart(data) {
         const noteText = hasSeasonality 
             ? 'Modelo avanzado con análisis estacional: detecta patrones mensuales (ej: diciembre alto, enero bajo) y los incorpora a la proyección. Usa regresión lineal sobre datos desestacionalizados + suavizado exponencial para capturar tendencias recientes. Incluye límites conservadores (piso 60%, techo 300% del valor actual).'
             : 'Modelo de proyección basado en regresión lineal y análisis de tendencias. Los datos históricos no muestran patrones estacionales significativos. Incluye suavizado exponencial y límites conservadores para prevenir proyecciones poco realistas.';
-        createChartNote(projectionContainer, noteText);
+        if (window.generateChartAnalysis) {
+            window.generateChartAnalysis('projections', months, projection, {
+                type: 'number',
+                note: noteText
+            });
+        }
     }
 
     // Update summary text

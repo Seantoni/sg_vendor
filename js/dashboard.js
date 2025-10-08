@@ -55,48 +55,131 @@ function calculateReturningUsersByMonth(data, months) {
     return returningUsersByMonth;
 }
 
+// Store debug data for the modal
+window.firstTimeUsersDebugData = {};
+
 // Function to calculate first-time users by month
 function calculateFirstTimeUsersByMonth(data, months) {
     const firstTimeUsersByMonth = [];
     
-    for (let i = 0; i < months.length; i++) {
-        const currentMonth = months[i];
-        const currentMonthDate = new Date(currentMonth + '-01');
-        
-        // Get users from current month
-        const currentMonthUsers = data.filter(item => {
-            const date = parseDate(item.date);
-            return date && formatYearMonth(date) === currentMonth;
-        });
-        
-        let firstTimeCount = 0;
-        
-        currentMonthUsers.forEach(item => {
-            const email = item.email;
+    // Reset debug data
+    window.firstTimeUsersDebugData = {};
+
+    // Helper to check if user had any transactions in selected business within [start, end)
+    function hasBusinessTxInWindow(email, businessName, startDate, endDate) {
+        // Scan global transactionData to ensure we see outside current filters
+        for (const item of (AppState.transactionData || [])) {
+            if (item.email !== email) continue;
+            const b = extractBusinessName(item.merchant);
+            if (b !== businessName) continue;
+            const d = parseDate(item.date);
+            if (!d) continue;
+            if (d >= startDate && d < endDate) return true;
+        }
+        return false;
+    }
+
+    const thresholdDays = AppState.firstTimeUsersThreshold || 0;
+    
+    // Find the selected business's first transaction date to validate threshold
+    let businessFirstTransactionDate = null;
+    const selectedBusiness = AppState.selectedBusiness;
+    
+    if (selectedBusiness && selectedBusiness !== 'all') {
+        // Find earliest transaction for selected business
+        for (const item of (AppState.transactionData || [])) {
             const businessName = extractBusinessName(item.merchant);
-            
-            // Check if this is the user's first visit to this business
-            const userBusinessKey = `${email}-${businessName}`;
-            const firstVisitDate = AppState.globalUserBusinessFirstVisit.get(userBusinessKey);
-            
-            if (firstVisitDate) {
-                const firstDate = parseDate(firstVisitDate);
-                const itemDate = parseDate(item.date);
-                
-                if (firstDate && itemDate) {
-                    const daysDifference = Math.abs((itemDate - firstDate) / (1000 * 60 * 60 * 24));
-                    
-                    // Check if this visit happened after the threshold days
-                    if (daysDifference >= AppState.firstTimeUsersThreshold) {
-                        firstTimeCount++;
+            if (businessName === selectedBusiness) {
+                const d = parseDate(item.date);
+                if (d) {
+                    if (!businessFirstTransactionDate || d < businessFirstTransactionDate) {
+                        businessFirstTransactionDate = d;
                     }
                 }
             }
-        });
+        }
         
-        firstTimeUsersByMonth.push(firstTimeCount);
+        // Check if business has enough history for the threshold
+        if (businessFirstTransactionDate) {
+            const today = new Date();
+            const businessAgeDays = Math.floor((today - businessFirstTransactionDate) / (1000 * 60 * 60 * 24));
+            
+            if (businessAgeDays < thresholdDays) {
+                console.warn(`⚠️ Selected business has only ${businessAgeDays} days of history, but threshold is ${thresholdDays} days. No "Nuevos o Reactivados" can be counted yet.`);
+                // Return zeros for all months - business too new for this threshold
+                return months.map(() => 0);
+            }
+        }
     }
-    
+
+    for (let i = 0; i < months.length; i++) {
+        const currentMonth = months[i];
+        const currentMonthDate = new Date(currentMonth + '-01');
+
+        // Get transactions from current month only
+        const currentMonthTx = data.filter(item => {
+            const date = parseDate(item.date);
+            return date && formatYearMonth(date) === currentMonth;
+        });
+
+        let count = 0;
+        const monthDebugData = [];
+
+        currentMonthTx.forEach(item => {
+            const email = item.email;
+            const businessName = extractBusinessName(item.merchant);
+
+            // Respect selected business (in case data still includes multiple)
+            if (AppState.selectedBusiness && AppState.selectedBusiness !== 'all') {
+                if (businessName !== AppState.selectedBusiness) return;
+            }
+
+            const itemDate = parseDate(item.date);
+            if (!itemDate) return;
+
+            // User's first transaction anywhere (program entry)
+            const globalFirstStr = AppState.globalUserFirstVisit && AppState.globalUserFirstVisit.get(email);
+            if (!globalFirstStr) return; // no program entry date
+            const globalFirst = parseDate(globalFirstStr);
+            if (!globalFirst) return;
+
+            // Must be at least thresholdDays after program entry
+            const daysSinceProgramEntry = Math.floor((itemDate - globalFirst) / (1000 * 60 * 60 * 24));
+            
+            // Ensure NO transactions in this business within the first thresholdDays after program entry
+            const windowStart = new Date(globalFirst);
+            const windowEnd = new Date(globalFirst);
+            windowEnd.setDate(windowEnd.getDate() + thresholdDays);
+
+            const hadBusinessTxInWindow = hasBusinessTxInWindow(email, businessName, windowStart, windowEnd);
+            const qualifies = daysSinceProgramEntry >= thresholdDays && !hadBusinessTxInWindow;
+
+            // Store debug info for this user
+            monthDebugData.push({
+                email: email,
+                globalFirst: globalFirst,
+                daysSinceProgramEntry: daysSinceProgramEntry,
+                transactionDate: itemDate,
+                hadBusinessTxInWindow: hadBusinessTxInWindow,
+                qualifies: qualifies,
+                reason: !qualifies ? 
+                    (daysSinceProgramEntry < thresholdDays ? 
+                        `Solo ${daysSinceProgramEntry} días desde primera (necesita ${thresholdDays})` : 
+                        'Ya tenía transacciones en el período inicial') : 
+                    '✅ Califica'
+            });
+
+            if (qualifies) {
+                count++;
+            }
+        });
+
+        // Store debug data for this month
+        window.firstTimeUsersDebugData[currentMonth] = monthDebugData;
+
+        firstTimeUsersByMonth.push(count);
+    }
+
     return firstTimeUsersByMonth;
 }
 
@@ -320,6 +403,8 @@ function updateDashboard(data) {
 // Function to update charts
 function updateCharts(data, calculatedMetrics = {}) {
     try {
+        // Expose the currently filtered dataset globally for debug modals
+        window.filteredTransactionData = Array.isArray(data) ? data : [];
         // Process data for chart visualization
         const monthlyData = {};
         

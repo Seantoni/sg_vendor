@@ -3,70 +3,125 @@
 
 // Function to initialize date pickers
 function initializeDatePickers() {
-    // Initialize current period date picker
+    // Initialize current period date picker - using month range selection
     DatePickers.currentDatePicker = flatpickr("#currentDateRange", {
+        plugins: [
+            new monthSelectPlugin({
+                shorthand: false,
+                dateFormat: "F Y",
+                altFormat: "F Y",
+                theme: "light"
+            })
+        ],
         mode: "range",
-        dateFormat: "M j, Y",
-        defaultDate: null,
         onChange: function (selectedDates) {
             if (selectedDates.length === 2) {
-                AppState.currentDateRange = selectedDates;
+                // User selected a range of months
+                const startMonth = selectedDates[0];
+                const endMonth = selectedDates[1];
                 
-                // Calculate the number of days in the current period
-                const days = getDaysBetween(selectedDates[0], selectedDates[1]);
+                // Set to first day of start month
+                const startDate = new Date(startMonth.getFullYear(), startMonth.getMonth(), 1);
+                // Set to last day of end month
+                const endDate = new Date(endMonth.getFullYear(), endMonth.getMonth() + 1, 0, 23, 59, 59, 999);
                 
-                // Update the input display to show the day count
+                AppState.currentDateRange = [startDate, endDate];
+                
+                // Update the input display to show the month range
                 const input = document.querySelector('#currentDateRange');
                 if (input) {
-                    input.value = `${selectedDates[0].toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                    })} to ${selectedDates[1].toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                    })} (${days} days)`;
+                    if (startMonth.getFullYear() === endMonth.getFullYear() && startMonth.getMonth() === endMonth.getMonth()) {
+                        // Same month
+                        input.value = startMonth.toLocaleDateString('en-US', {
+                            month: 'long',
+                            year: 'numeric'
+                        });
+                    } else {
+                        // Different months
+                        input.value = `${startMonth.toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: 'numeric'
+                        })} - ${endMonth.toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: 'numeric'
+                        })}`;
+                    }
                 }
 
-                // Automatically set previous period based on current selection
-                const periodLength = selectedDates[1] - selectedDates[0];
-                const previousEnd = new Date(selectedDates[0]);
-                previousEnd.setDate(previousEnd.getDate() - 1); // Day before current start
-                const previousStart = new Date(previousEnd);
-                previousStart.setTime(previousEnd.getTime() - periodLength);
+                // Calculate the duration in months
+                const monthsDiff = (endMonth.getFullYear() - startMonth.getFullYear()) * 12 + 
+                                  (endMonth.getMonth() - startMonth.getMonth()) + 1;
 
-                AppState.previousDateRange = [previousStart, previousEnd];
-                DatePickers.previousDatePicker.setDate([previousStart, previousEnd]);
+                // Automatically set previous period with same duration
+                const prevEndMonth = new Date(startMonth.getFullYear(), startMonth.getMonth() - 1, 1);
+                const prevStartMonth = new Date(prevEndMonth.getFullYear(), prevEndMonth.getMonth() - monthsDiff + 1, 1);
                 
-                const previousDays = getDaysBetween(previousStart, previousEnd);
+                const prevStartDate = new Date(prevStartMonth.getFullYear(), prevStartMonth.getMonth(), 1);
+                const prevEndDate = new Date(prevEndMonth.getFullYear(), prevEndMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+
+                AppState.previousDateRange = [prevStartDate, prevEndDate];
+                DatePickers.previousDatePicker.setDate([prevStartMonth, prevEndMonth]);
+                
                 const previousInput = document.querySelector('#previousDateRange');
                 if (previousInput) {
-                    previousInput.value = `${previousStart.toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                    })} to ${previousEnd.toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                    })} (${previousDays} days)`;
+                    if (prevStartMonth.getFullYear() === prevEndMonth.getFullYear() && 
+                        prevStartMonth.getMonth() === prevEndMonth.getMonth()) {
+                        previousInput.value = prevStartMonth.toLocaleDateString('en-US', {
+                            month: 'long',
+                            year: 'numeric'
+                        });
+                    } else {
+                        previousInput.value = `${prevStartMonth.toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: 'numeric'
+                        })} - ${prevEndMonth.toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: 'numeric'
+                        })}`;
+                    }
                 }
 
                 filterAndUpdateDashboard();
+            } else if (selectedDates.length === 1) {
+                // User selected just one month (treat as single month range)
+                const selectedMonth = selectedDates[0];
+                const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+                const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+                
+                AppState.currentDateRange = [startDate, endDate];
+                
+                const input = document.querySelector('#currentDateRange');
+                if (input) {
+                    input.value = selectedMonth.toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                    });
+                }
             }
         }
     });
 
-    // Initialize previous period date picker (read-only)
+    // Initialize previous period date picker (read-only) - also using month range selection
     DatePickers.previousDatePicker = flatpickr("#previousDateRange", {
+        plugins: [
+            new monthSelectPlugin({
+                shorthand: false,
+                dateFormat: "F Y",
+                altFormat: "F Y",
+                theme: "light"
+            })
+        ],
         mode: "range",
-        dateFormat: "M j, Y",
-        defaultDate: null,
         clickOpens: false, // Make it read-only
         onChange: function (selectedDates) {
             if (selectedDates.length === 2) {
-                AppState.previousDateRange = selectedDates;
+                const startMonth = selectedDates[0];
+                const endMonth = selectedDates[1];
+                
+                const startDate = new Date(startMonth.getFullYear(), startMonth.getMonth(), 1);
+                const endDate = new Date(endMonth.getFullYear(), endMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+                
+                AppState.previousDateRange = [startDate, endDate];
                 filterAndUpdateDashboard();
             }
         }
@@ -81,47 +136,121 @@ function setupQuickDateFilter() {
         if (!value) return; // If no value selected, do nothing
         
         if (value === "historico") {
-            // Set start date to May 1st, 2024
-            const startDate = new Date(2024, 4, 1); // Note: month is 0-based (4 = May)
+            // Set start date to May 2024 (all data)
+            const startMonth = new Date(2024, 4, 1); // Note: month is 0-based (4 = May)
             
             // Get the latest transaction date
             const latestDate = findLatestTransactionDate(AppState.transactionData) || new Date();
+            const endMonth = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1);
             
-            // Set the current date range
-            AppState.currentDateRange = [startDate, latestDate];
-            DatePickers.currentDatePicker.setDate([startDate, latestDate]);
-            
-            // Calculate previous period with same duration
-            const duration = latestDate.getTime() - startDate.getTime();
-            const prevEndDate = new Date(startDate);
-            prevEndDate.setDate(prevEndDate.getDate() - 1);
-            const prevStartDate = new Date(prevEndDate);
-            prevStartDate.setTime(prevStartDate.getTime() - duration);
-            
-            // Set the previous date range
-            AppState.previousDateRange = [prevStartDate, prevEndDate];
-            DatePickers.previousDatePicker.setDate([prevStartDate, prevEndDate]);
-        } else {
-            // Handle numeric day values (existing functionality)
-            const days = parseInt(value);
-            
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setDate(endDate.getDate() - days);
+            const startDate = new Date(startMonth.getFullYear(), startMonth.getMonth(), 1);
+            const endDate = new Date(endMonth.getFullYear(), endMonth.getMonth() + 1, 0, 23, 59, 59, 999);
             
             // Set the current date range
             AppState.currentDateRange = [startDate, endDate];
-            DatePickers.currentDatePicker.setDate([startDate, endDate]);
+            DatePickers.currentDatePicker.setDate([startMonth, endMonth]);
             
-            // Calculate and set the previous period
-            const prevEndDate = new Date(startDate);
-            prevEndDate.setDate(prevEndDate.getDate() - 1);
-            const prevStartDate = new Date(prevEndDate);
-            prevStartDate.setDate(prevStartDate.getDate() - days);
+            const currentInput = document.querySelector('#currentDateRange');
+            if (currentInput) {
+                currentInput.value = `May 2024 - ${endMonth.toLocaleDateString('en-US', {
+                    month: 'short',
+                    year: 'numeric'
+                })}`;
+            }
             
-            // Set the previous date range
+            // Calculate months in range
+            const monthsDiff = (endMonth.getFullYear() - startMonth.getFullYear()) * 12 + 
+                              (endMonth.getMonth() - startMonth.getMonth()) + 1;
+            
+            // Set previous period with same duration
+            const prevEndMonth = new Date(2024, 3, 1); // April 2024
+            const prevStartMonth = new Date(prevEndMonth.getFullYear(), prevEndMonth.getMonth() - monthsDiff + 1, 1);
+            
+            const prevStartDate = new Date(prevStartMonth.getFullYear(), prevStartMonth.getMonth(), 1);
+            const prevEndDate = new Date(prevEndMonth.getFullYear(), prevEndMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+            
             AppState.previousDateRange = [prevStartDate, prevEndDate];
-            DatePickers.previousDatePicker.setDate([prevStartDate, prevEndDate]);
+            DatePickers.previousDatePicker.setDate([prevStartMonth, prevEndMonth]);
+            
+            const previousInput = document.querySelector('#previousDateRange');
+            if (previousInput) {
+                if (prevStartMonth.getMonth() === prevEndMonth.getMonth()) {
+                    previousInput.value = prevStartMonth.toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                    });
+                } else {
+                    previousInput.value = `${prevStartMonth.toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric'
+                    })} - ${prevEndMonth.toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric'
+                    })}`;
+                }
+            }
+        } else {
+            // Handle month-based values (convert days to approximate months)
+            const days = parseInt(value);
+            const monthsBack = Math.max(0, Math.floor(days / 30) - 1); // Convert to months, subtract 1 to get the end month
+            
+            const today = new Date();
+            const endMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const startMonth = new Date(today.getFullYear(), today.getMonth() - monthsBack, 1);
+            
+            // Set current period
+            const startDate = new Date(startMonth.getFullYear(), startMonth.getMonth(), 1);
+            const endDate = new Date(endMonth.getFullYear(), endMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+            
+            AppState.currentDateRange = [startDate, endDate];
+            DatePickers.currentDatePicker.setDate([startMonth, endMonth]);
+            
+            const currentInput = document.querySelector('#currentDateRange');
+            if (currentInput) {
+                if (startMonth.getMonth() === endMonth.getMonth() && startMonth.getFullYear() === endMonth.getFullYear()) {
+                    currentInput.value = endMonth.toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                    });
+                } else {
+                    currentInput.value = `${startMonth.toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric'
+                    })} - ${endMonth.toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric'
+                    })}`;
+                }
+            }
+            
+            // Set previous period with same duration
+            const numMonths = monthsBack + 1;
+            const prevEndMonth = new Date(startMonth.getFullYear(), startMonth.getMonth() - 1, 1);
+            const prevStartMonth = new Date(prevEndMonth.getFullYear(), prevEndMonth.getMonth() - numMonths + 1, 1);
+            
+            const prevStartDate = new Date(prevStartMonth.getFullYear(), prevStartMonth.getMonth(), 1);
+            const prevEndDate = new Date(prevEndMonth.getFullYear(), prevEndMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+            
+            AppState.previousDateRange = [prevStartDate, prevEndDate];
+            DatePickers.previousDatePicker.setDate([prevStartMonth, prevEndMonth]);
+            
+            const previousInput = document.querySelector('#previousDateRange');
+            if (previousInput) {
+                if (prevStartMonth.getMonth() === prevEndMonth.getMonth() && prevStartMonth.getFullYear() === prevEndMonth.getFullYear()) {
+                    previousInput.value = prevStartMonth.toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                    });
+                } else {
+                    previousInput.value = `${prevStartMonth.toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric'
+                    })} - ${prevEndMonth.toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric'
+                    })}`;
+                }
+            }
         }
         
         // Update the dashboard with new date ranges

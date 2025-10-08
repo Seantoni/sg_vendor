@@ -141,9 +141,6 @@ function openChartModal(sourceChartId) {
                         },
                         padding: 20
                     }
-                },
-                tooltip: {
-                    enabled: true
                 }
             },
             scales: {

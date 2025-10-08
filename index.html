@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Análisis de Transacciones</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 </head>
 <body>
@@ -195,11 +197,11 @@
                                 </div>
                                 <div class="modal-filter-group">
                                     <label>Período Actual</label>
-                                    <input type="text" id="modalCurrentDateRange" class="filter-input" placeholder="Seleccionar período actual" autocomplete="off">
+                                    <input type="text" id="modalCurrentDateRange" class="filter-input" placeholder="Seleccionar mes actual" autocomplete="off">
                                 </div>
                                 <div class="modal-filter-group">
                                     <label>Período Anterior</label>
-                                    <input type="text" id="modalPreviousDateRange" class="filter-input" placeholder="Seleccionar período anterior" autocomplete="off">
+                                    <input type="text" id="modalPreviousDateRange" class="filter-input" placeholder="Seleccionar mes anterior" autocomplete="off">
                                 </div>
                             </div>
                         </div>
@@ -282,11 +284,11 @@
                     </div>
                     <div class="filter-group">
                         <label>Período Actual</label>
-                        <input type="text" id="currentDateRange" class="filter-input" placeholder="Seleccionar período actual" autocomplete="off">
+                        <input type="text" id="currentDateRange" class="filter-input" placeholder="Seleccionar mes actual" autocomplete="off">
                     </div>
                     <div class="filter-group">
                         <label>Período Anterior</label>
-                        <input type="text" id="previousDateRange" class="filter-input" placeholder="Seleccionar período anterior" autocomplete="off">
+                        <input type="text" id="previousDateRange" class="filter-input" placeholder="Seleccionar mes anterior" autocomplete="off">
                     </div>
                 </div>
             </div>
@@ -512,11 +514,31 @@
             <section class="dashboard-section" id="users-section" data-section="users">
 
                 <div class="metrics-charts-grid">
-                    <div class="metrics-chart">
-                        <canvas id="uniqueUsersChart"></canvas>
+                    <div class="metrics-chart-container">
+                        <div class="chart-header">
+                            <h4 class="chart-header-title">Usuarios Únicos por Mes</h4>
+                            <button id="debugUniqueUsers" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
+                        </div>
+                        <div class="metrics-chart">
+                            <canvas id="uniqueUsersChart"></canvas>
+                        </div>
+                        <div id="uniqueUsersAnalysis" class="chart-analysis-panel"></div>
                     </div>
-                    <div class="metrics-chart">
-                        <canvas id="avgVisitsChart"></canvas>
+                    <div class="metrics-chart-container">
+                        <div class="chart-header">
+                            <h4 class="chart-header-title">Visitas Promedio por Usuario</h4>
+                            <button id="debugAvgVisits" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
+                        </div>
+                        <div class="metrics-chart">
+                            <canvas id="avgVisitsChart"></canvas>
+                        </div>
+                        <div id="avgVisitsAnalysis" class="chart-analysis-panel"></div>
                     </div>
                 </div>
                 
@@ -538,11 +560,16 @@
                                 <option value="330">Después de 330 Días</option>
                                 <option value="360">Después de 360 Días</option>
                             </select>
-                            <!-- Tooltip removed - replaced with chart notes -->
+                            <button id="openDebugSelector" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
                         </div>
                         <div class="metrics-chart">
                             <canvas id="firstTimeUsersChart"></canvas>
                         </div>
+                        <!-- Analysis section for Nuevos o Reactivados -->
+                        <div id="firstTimeUsersAnalysis" class="chart-analysis-panel"></div>
                     </div>
                 </div>
             </section>
@@ -568,14 +595,28 @@
                                 <option value="11">11 Meses Anteriores</option>
                                 <option value="12">12 Meses Anteriores</option>
                             </select>
-                            <!-- Tooltip removed - replaced with chart notes -->
+                            <button id="debugReturningUsers" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
                         </div>
                         <div class="metrics-chart">
                             <canvas id="returningUsersChart"></canvas>
                         </div>
+                        <div id="returningUsersAnalysis" class="chart-analysis-panel"></div>
                     </div>
-                    <div class="metrics-chart">
-                        <canvas id="returningUsersPercentageChart"></canvas>
+                    <div class="metrics-chart-container">
+                        <div class="chart-header">
+                            <h4 class="chart-header-title">% Usuarios Recurrentes</h4>
+                            <button id="debugReturningPercentage" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
+                        </div>
+                        <div class="metrics-chart">
+                            <canvas id="returningUsersPercentageChart"></canvas>
+                        </div>
+                        <div id="returningPercentageAnalysis" class="chart-analysis-panel"></div>
                     </div>
                 </div>
             </section>
@@ -584,11 +625,31 @@
             <section class="dashboard-section" id="financial-section" data-section="financial">
 
                 <div class="metrics-charts-grid">
-                    <div class="metrics-chart">
-                        <canvas id="totalAmountChart"></canvas>
+                    <div class="metrics-chart-container">
+                        <div class="chart-header">
+                            <h4 class="chart-header-title">Monto Total por Mes</h4>
+                            <button id="debugTotalAmount" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
+                        </div>
+                        <div class="metrics-chart">
+                            <canvas id="totalAmountChart"></canvas>
+                        </div>
+                        <div id="totalAmountAnalysis" class="chart-analysis-panel"></div>
                     </div>
-                    <div class="metrics-chart">
-                        <canvas id="avgSpendPerUserChart"></canvas>
+                    <div class="metrics-chart-container">
+                        <div class="chart-header">
+                            <h4 class="chart-header-title">Gasto Promedio por Mes</h4>
+                            <button id="debugAvgSpend" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
+                        </div>
+                        <div class="metrics-chart">
+                            <canvas id="avgSpendPerUserChart"></canvas>
+                        </div>
+                        <div id="avgSpendAnalysis" class="chart-analysis-panel"></div>
                     </div>
                 </div>
             </section>
@@ -600,6 +661,7 @@
                 <div class="daily-sales-chart">
                     <canvas id="monthlyProjectionChart"></canvas>
                 </div>
+                <div id="projectionsAnalysis" class="chart-analysis-panel"></div>
                 <div id="projectionSummaryText" class="chart-summary-text"></div>
             </div>
             </section>
@@ -610,15 +672,17 @@
                 <div class="full-width">
                     <div class="metrics-chart-container">
                         <canvas id="locationUsersChart" class="metrics-chart"></canvas>
-        </div>
-    </div>
+                        <div id="locationUsersAnalysis" class="chart-analysis-panel"></div>
+                    </div>
+                </div>
 
                 <!-- Location GMV Chart Container -->
                 <div class="full-width location-gmv-chart">
                     <div class="metrics-chart-container">
                         <canvas id="locationGMVChart" class="metrics-chart"></canvas>
+                        <div id="locationGMVAnalysis" class="chart-analysis-panel"></div>
                     </div>
-            </div>
+                </div>
             </section>
 
             <!-- Monitoring Section -->
@@ -628,6 +692,7 @@
                 <div class="daily-sales-chart">
                     <canvas id="dailySalesChart"></canvas>
                 </div>
+                <div id="dailySalesAnalysis" class="chart-analysis-panel"></div>
             </div>
             
             <!-- Panel de Reporte de Anomalías -->
@@ -685,6 +750,81 @@
             </div>
         </div>
     </div>
+    
+    <!-- Generic Chart Debug Modal -->
+    <div id="chartDebugModal" class="modal hidden">
+        <div class="modal-content month-selector-content">
+            <span class="close-modal" onclick="closeChartDebugModal()">&times;</span>
+            <div class="debug-modal-header">
+                <h2 id="chartDebugModalTitle">Análisis Detallado</h2>
+                <p>Selecciona un mes para ver información detallada</p>
+            </div>
+            <div class="month-selector-body">
+                <div id="chartDebugMonthGrid" class="month-selector-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Month Selector Modal (First Time Users) -->
+    <div id="monthSelectorModal" class="modal hidden">
+        <div class="modal-content month-selector-content">
+            <span class="close-modal" onclick="closeMonthSelector()">&times;</span>
+            <div class="debug-modal-header">
+                <h2>Seleccionar Mes para Análisis</h2>
+                <p>Elige el mes que deseas analizar en detalle</p>
+            </div>
+            <div class="month-selector-body">
+                <div id="monthSelectorGrid" class="month-selector-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Debug Modal for Nuevos o Reactivados -->
+    <div id="debugModal" class="modal hidden">
+        <div class="modal-content debug-modal-content">
+            <span class="close-modal" onclick="closeDebugModal()">&times;</span>
+            <div class="debug-modal-header">
+                <h2 id="debugModalTitle">Detalle de Cálculo</h2>
+                <p id="debugModalSubtitle"></p>
+            </div>
+            <div class="debug-modal-body">
+                <div class="debug-stats">
+                    <div class="debug-stat">
+                        <span class="stat-label">Total Usuarios:</span>
+                        <span class="stat-value" id="debugTotalUsers">0</span>
+                    </div>
+                    <div class="debug-stat">
+                        <span class="stat-label">Umbral:</span>
+                        <span class="stat-value" id="debugThreshold">0 días</span>
+                    </div>
+                    <div class="debug-stat">
+                        <span class="stat-label">Negocio:</span>
+                        <span class="stat-value" id="debugBusiness">-</span>
+                    </div>
+                </div>
+                <div class="debug-table-container">
+                    <table class="debug-table">
+                        <thead>
+                            <tr>
+                                <th>ID Usuario</th>
+                                <th>Primera Transacción (Global)</th>
+                                <th>Días desde Primera</th>
+                                <th>Fecha Transacción</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="debugTableBody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Authentication Check (must load first) -->
     <script src="js/auth-check.js"></script>
     
@@ -699,6 +839,7 @@
     <script src="js/dashboard.js"></script>
     <script src="js/date-handlers.js"></script>
     <script src="js/modal.js"></script>
+    <script src="js/chart-analysis.js"></script>
     
     <!-- Main Application Entry Point -->
     <script src="js/main.js"></script>
