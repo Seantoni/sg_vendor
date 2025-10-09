@@ -36,6 +36,9 @@ function cleanupAllCharts() {
 
 // Function to initialize location users chart
 function initLocationUsersChart(data) {
+    console.log('📊 initLocationUsersChart called with', data ? data.length : 0, 'items');
+    console.log('📊 Sample data dates:', data ? data.slice(0, 5).map(d => d.date) : []);
+    
     const ctx = document.getElementById('locationUsersChart');
     if (!ctx) return;
 
@@ -54,10 +57,14 @@ function initLocationUsersChart(data) {
     // Process data to get unique users by location and month
     const locationData = {};
     const monthsSet = new Set();
+    
+    let processedCount = 0;
 
     data.forEach(item => {
         const date = parseDate(item.date);
         if (!date) return;
+        
+        processedCount++;
 
         const businessName = extractBusinessName(item.merchant);
         const location = extractLocation(item.merchant);
@@ -100,7 +107,7 @@ function initLocationUsersChart(data) {
             }
             
             if (!businessMatch) {
-                return; // Skip this item if it doesn't match the selected business
+            return; // Skip this item if it doesn't match the selected business
             }
         }
 
@@ -136,6 +143,11 @@ function initLocationUsersChart(data) {
     // Sort locations by total users (descending - highest at top)
     const locations = Object.keys(processedData).sort((a, b) => locationTotals[b] - locationTotals[a]);
     
+    console.log('📊 Processed', processedCount, 'items');
+    console.log('📊 Found months:', months);
+    console.log('📊 Found locations:', locations);
+    console.log('📊 Location totals:', locationTotals);
+    
     const datasets = months.map((month, index) => ({
         label: month,
         data: locations.map(location => processedData[location][month] || 0),
@@ -145,7 +157,7 @@ function initLocationUsersChart(data) {
         borderRadius: 4,
     }));
 
-    
+
     Charts.locationUsersChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -297,7 +309,7 @@ function initLocationGMVChart(data) {
             }
             
             if (!businessMatch) {
-                return; // Skip this item if it doesn't match the selected business
+            return; // Skip this item if it doesn't match the selected business
             }
         }
 
@@ -346,7 +358,7 @@ function initLocationGMVChart(data) {
         borderRadius: 4,
     }));
 
-    
+
     Charts.locationGMVChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -750,7 +762,7 @@ function initMonthlyProjectionChart(data) {
             ? 'Modelo avanzado con análisis estacional: detecta patrones mensuales (ej: diciembre alto, enero bajo) y los incorpora a la proyección. Usa regresión lineal sobre datos desestacionalizados + suavizado exponencial para capturar tendencias recientes. Incluye límites conservadores (piso 60%, techo 300% del valor actual).'
             : 'Modelo de proyección basado en regresión lineal y análisis de tendencias. Los datos históricos no muestran patrones estacionales significativos. Incluye suavizado exponencial y límites conservadores para prevenir proyecciones poco realistas.';
         if (window.generateChartAnalysis) {
-            window.generateChartAnalysis('projections', months, projection, {
+            window.generateChartAnalysis('projections', projectionMonths, projectionCounts, {
                 type: 'number',
                 note: noteText
             });
@@ -797,4 +809,360 @@ window.initLocationUsersChart = initLocationUsersChart;
 window.initLocationGMVChart = initLocationGMVChart;
 window.initMonthlyProjectionChart = initMonthlyProjectionChart;
 window.safeDestroyChart = safeDestroyChart;
-window.createChartNote = createChartNote;
+ 
+// ================= Chart.js Global Defaults (centralized) =================
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.responsive = true;
+        Chart.defaults.maintainAspectRatio = false;
+        Chart.defaults.resizeDelay = 0;
+        Chart.defaults.animation = { duration: 0 };
+        Chart.defaults.plugins.tooltip.enabled = false;
+        if (typeof ChartDataLabels !== 'undefined') {
+            Chart.defaults.plugins.datalabels = Chart.defaults.plugins.datalabels || {};
+            if (Chart.defaults.plugins.datalabels.listeners) {
+                delete Chart.defaults.plugins.datalabels.listeners;
+            }
+        }
+    }
+});
+
+// =============== Metrics Chart Builders (extracted from script.js) ===============
+// Helper to build a standard title config
+function buildTitle(text) {
+    return {
+        display: true,
+        text: text,
+        font: { size: 16, weight: 'bold' },
+        padding: { bottom: 20 },
+        color: '#2d3436'
+    };
+}
+
+function clearCanvas(canvas) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function createUniqueUsersChart(chartData) {
+    const el = document.getElementById('uniqueUsersChart');
+    if (!el) return;
+    Charts.uniqueUsersChart = safeDestroyChart(Charts.uniqueUsersChart);
+    clearCanvas(el);
+    Charts.uniqueUsersChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: chartData.labels, datasets: [{
+            label: 'Usuarios Únicos',
+            data: chartData.uniqueUsers,
+            backgroundColor: 'rgba(107, 100, 219, 0.7)',
+            borderColor: '#6B64DB',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Usuarios Únicos por Mes'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5, formatter: Math.round,
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { precision: 0 } },
+                x: { grid: { display: false } }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('uniqueUsers', chartData.labels, chartData.uniqueUsers, {
+            type: 'number',
+            note: 'Muestra el número total de usuarios únicos que realizaron transacciones en cada período mensual.'
+        });
+    }
+}
+
+function createReturningUsersChart(chartData) {
+    const el = document.getElementById('returningUsersChart');
+    if (!el) return;
+    Charts.returningUsersChart = safeDestroyChart(Charts.returningUsersChart);
+    clearCanvas(el);
+    Charts.returningUsersChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: chartData.labels, datasets: [{
+            label: 'Usuarios Recurrentes',
+            data: chartData.returningUsers || [],
+            backgroundColor: 'rgba(255, 159, 64, 0.7)',
+            borderColor: '#FF9F40',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Usuarios Recurrentes por Mes'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5, formatter: Math.round,
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { precision: 0 } },
+                x: { grid: { display: false } }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('returningUsers', chartData.labels, chartData.returningUsers, {
+            type: 'number',
+            note: 'Usuarios que han realizado más de una transacción dentro de la ventana de tiempo configurada.'
+        });
+    }
+}
+
+function createAvgVisitsChart(chartData) {
+    const el = document.getElementById('avgVisitsChart');
+    if (!el) return;
+    Charts.avgVisitsChart = safeDestroyChart(Charts.avgVisitsChart);
+    clearCanvas(el);
+    Charts.avgVisitsChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: chartData.labels, datasets: [{
+            label: 'Visitas Promedio',
+            data: chartData.avgVisits || [],
+            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+            borderColor: '#36A2EB',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Visitas Promedio por Usuario'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5,
+                    formatter: (v) => (typeof v === 'number' ? v.toFixed(1) : v),
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('avgVisits', chartData.labels, chartData.avgVisits, {
+            type: 'decimal', suffix: ' visitas',
+            note: 'Promedio de visitas por usuario en cada período mensual basado en el historial de transacciones.'
+        });
+    }
+}
+
+function createReturningPercentageChart(chartData) {
+    const el = document.getElementById('returningUsersPercentageChart');
+    if (!el) return;
+    Charts.returningUsersPercentageChart = safeDestroyChart(Charts.returningUsersPercentageChart);
+    clearCanvas(el);
+    Charts.returningUsersPercentageChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: chartData.labels, datasets: [{
+            label: 'Porcentaje Usuarios Recurrentes',
+            data: chartData.returningUsersPercentage || [],
+            backgroundColor: 'rgba(255, 99, 132, 0.7)',
+            borderColor: '#FF6384',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Porcentaje de Usuarios Recurrentes'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5,
+                    formatter: (v) => `${Math.round(v)}%`,
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('returningPercentage', chartData.labels, chartData.returningUsersPercentage, {
+            type: 'percentage',
+            note: 'Porcentaje de usuarios recurrentes respecto al total de usuarios únicos en cada período.'
+        });
+    }
+}
+
+function createTotalAmountChart(chartData) {
+    const el = document.getElementById('totalAmountChart');
+    if (!el) return;
+    Charts.totalAmountChart = safeDestroyChart(Charts.totalAmountChart);
+    clearCanvas(el);
+    Charts.totalAmountChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: chartData.labels, datasets: [{
+            label: 'Monto Total',
+            data: chartData.totalAmount || [],
+            backgroundColor: 'rgba(75, 192, 192, 0.7)',
+            borderColor: '#4BC0C0',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Monto Total por Mes'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5,
+                    formatter: function (value) {
+                        return new Intl.NumberFormat('en-US', {
+                            style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2
+                        }).format(value || 0);
+                    },
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('totalAmount', chartData.labels, chartData.totalAmount, {
+            type: 'currency', prefix: '$',
+            note: 'Monto total de transacciones procesadas en cada período mensual (GMV - Gross Merchandise Value).'
+        });
+    }
+}
+
+function createFirstTimeUsersChart(chartData) {
+    const el = document.getElementById('firstTimeUsersChart');
+    if (!el) return;
+    Charts.firstTimeUsersChart = safeDestroyChart(Charts.firstTimeUsersChart);
+    clearCanvas(el);
+    Charts.firstTimeUsersChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: chartData.labels, datasets: [{
+            label: 'Nuevos o Reactivados',
+            data: chartData.firstTimeUsers || [],
+            backgroundColor: 'rgba(153, 102, 255, 0.7)',
+            borderColor: '#9966FF',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Nuevos o Reactivados por Mes'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5, formatter: Math.round,
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('firstTimeUsers', chartData.labels, chartData.firstTimeUsers, {
+            type: 'number',
+            note: 'Usuarios que realizan su primera transacción basado en el umbral de tiempo configurado para usuarios primerizos. Usa el botón "Ver Detalle de Cálculo por Mes" para analizar qué usuarios califican en cada mes.'
+        });
+    }
+    if (typeof generateFirstTimeUsersAnalysis === 'function') {
+        generateFirstTimeUsersAnalysis(chartData.labels, chartData.firstTimeUsers);
+    }
+}
+
+function createAvgSpendPerUserChart(chartData) {
+    const el = document.getElementById('avgSpendPerUserChart');
+    if (!el) return;
+    Charts.avgSpendPerUserChart = safeDestroyChart(Charts.avgSpendPerUserChart);
+    clearCanvas(el);
+    Charts.avgSpendPerUserChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: chartData.labels, datasets: [{
+            label: 'Gasto Promedio por Usuario',
+            data: chartData.avgSpendPerUser || [],
+            backgroundColor: 'rgba(255, 206, 86, 0.7)',
+            borderColor: '#FFCE56',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Gasto Promedio por Usuario'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5,
+                    formatter: function (value) {
+                        return new Intl.NumberFormat('en-US', {
+                            style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2
+                        }).format(value || 0);
+                    },
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('avgSpend', chartData.labels, chartData.avgSpendPerUser, {
+            type: 'currency', prefix: '$',
+            note: 'Gasto promedio por usuario calculado dividiendo el GMV total entre el número de usuarios únicos por período.'
+        });
+    }
+}
+
+function initMetricsCharts(chartData) {
+    createUniqueUsersChart(chartData);
+    createReturningUsersChart(chartData);
+    createAvgVisitsChart(chartData);
+    createReturningPercentageChart(chartData);
+    createTotalAmountChart(chartData);
+    createFirstTimeUsersChart(chartData);
+    createAvgSpendPerUserChart(chartData);
+}
+
+// Export builders
+window.createUniqueUsersChart = createUniqueUsersChart;
+window.createReturningUsersChart = createReturningUsersChart;
+window.createAvgVisitsChart = createAvgVisitsChart;
+window.createReturningPercentageChart = createReturningPercentageChart;
+window.createTotalAmountChart = createTotalAmountChart;
+window.createFirstTimeUsersChart = createFirstTimeUsersChart;
+window.createAvgSpendPerUserChart = createAvgSpendPerUserChart;
+window.initMetricsCharts = initMetricsCharts;

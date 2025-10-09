@@ -646,7 +646,9 @@ function initializeFilterModal() {
             }
             
             function selectOption(option) {
-                modalBusinessSearch.value = option.textContent;
+                // Use data-value for the actual business name, or fallback to textContent
+                const businessName = option.dataset.value || option.textContent;
+                modalBusinessSearch.value = businessName;
                 modalBusinessOptions.classList.remove('show');
                 selectedIndex = -1;
                 
@@ -833,7 +835,11 @@ function initializeFilterModal() {
             option.addEventListener('click', function() {
                 options.forEach(opt => opt.classList.remove('selected'));
                 this.classList.add('selected');
-                searchInput.value = this.textContent;
+                
+                // Use data-value for the actual business name, or fallback to textContent
+                const businessName = this.dataset.value || this.textContent;
+                searchInput.value = businessName;
+                
                 document.getElementById('modalBusinessOptions').classList.remove('show');
             });
         });
@@ -867,11 +873,30 @@ function initializeFilterModal() {
     }
     
     function applyModalFilters() {
-        // Transfer business selection
+        // Transfer business selection with business group logic
         const modalBusinessSearch = document.getElementById('modalBusinessSearch');
         const mainBusinessSearch = document.getElementById('businessSearch');
         if (modalBusinessSearch.value && mainBusinessSearch) {
-            mainBusinessSearch.value = modalBusinessSearch.value;
+            let selectedBusinessName = modalBusinessSearch.value;
+            
+            // If not 'all', find the primary business name from the group
+            if (selectedBusinessName !== 'Todos los Negocios' && selectedBusinessName !== '') {
+                // Use the same business group logic as the main filter
+                if (window.businessGroups) {
+                    const group = window.businessGroups.find(g => g.all.includes(selectedBusinessName));
+                    if (group) {
+                        selectedBusinessName = group.primary; // Use the clean primary name
+                    }
+                }
+                
+                // Set the primary business name
+                AppState.selectedBusiness = selectedBusinessName;
+                mainBusinessSearch.value = selectedBusinessName;
+            } else {
+                AppState.selectedBusiness = 'all';
+                mainBusinessSearch.value = '';
+            }
+            
             mainBusinessSearch.dispatchEvent(new Event('change'));
         }
         

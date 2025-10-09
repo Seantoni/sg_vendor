@@ -144,6 +144,191 @@ function generateChartAnalysis(chartId, labels, data, context = {}) {
     analysisPanel.innerHTML = html;
 }
 
+// ================= First-Time Users Debug & Analysis (migrated from script.js) =================
+
+function openMonthSelector() {
+    const modal = document.getElementById('monthSelectorModal');
+    const grid = document.getElementById('monthSelectorGrid');
+    if (!modal || !grid) return;
+
+    const availableMonths = Object.keys(window.firstTimeUsersDebugData || {}).sort();
+    if (availableMonths.length === 0) {
+        grid.innerHTML = '<p style="text-align: center; padding: 40px; color: #636e72;">No hay datos disponibles. Por favor, selecciona un negocio y período primero.</p>';
+    } else {
+        grid.innerHTML = availableMonths.map(monthKey => {
+            const monthDate = new Date(monthKey + '-01');
+            const monthName = monthDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+            const count = (window.firstTimeUsersDebugData[monthKey] || []).filter(u => u.qualifies).length;
+            const total = (window.firstTimeUsersDebugData[monthKey] || []).length;
+            return `
+                <button class="month-selector-btn" onclick="selectMonthForDebug('${monthKey}')">
+                    <div class="month-name">${monthName}</div>
+                    <div class="month-stats">${count} de ${total} usuarios</div>
+                </button>
+            `;
+        }).join('');
+    }
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMonthSelector() {
+    const modal = document.getElementById('monthSelectorModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
+function selectMonthForDebug(monthKey) {
+    closeMonthSelector();
+    setTimeout(() => showDebugModal(monthKey), 300);
+}
+
+function showDebugModal(monthKey) {
+    const modal = document.getElementById('debugModal');
+    const debugData = (window.firstTimeUsersDebugData && window.firstTimeUsersDebugData[monthKey]) || [];
+    if (!modal) return;
+
+    const title = document.getElementById('debugModalTitle');
+    const subtitle = document.getElementById('debugModalSubtitle');
+    if (title) title.textContent = `Nuevos o Reactivados - ${monthKey}`;
+    if (subtitle) subtitle.textContent = 'Análisis detallado de usuarios que califican en este mes';
+
+    const qualified = debugData.filter(d => d.qualifies).length;
+    const total = debugData.length;
+
+    const debugTotalUsers = document.getElementById('debugTotalUsers');
+    const debugThreshold = document.getElementById('debugThreshold');
+    const debugBusiness = document.getElementById('debugBusiness');
+    if (debugTotalUsers) debugTotalUsers.textContent = `${qualified} de ${total}`;
+    if (debugThreshold) debugThreshold.textContent = `${AppState.firstTimeUsersThreshold || 0} días`;
+    if (debugBusiness) debugBusiness.textContent = AppState.selectedBusiness || 'Todos';
+
+    const tableBody = document.getElementById('debugTableBody');
+    if (tableBody) {
+        if (debugData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #636e72;">No hay datos para este mes</td></tr>';
+        } else {
+            tableBody.innerHTML = debugData.map(user => {
+                const rowClass = user.qualifies ? 'debug-row-success' : 'debug-row-excluded';
+                const fullUserCode = (window.emailToUserCode && window.emailToUserCode.get(user.email)) || 'Usuario #?';
+                const userNumber = fullUserCode.replace('Usuario #', '');
+                return `
+                    <tr class="${rowClass}">
+                        <td class="user-id-cell"><strong>#${userNumber}</strong></td>
+                        <td>${user.globalFirst.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                        <td>${user.daysSinceProgramEntry} días</td>
+                        <td>${user.transactionDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                        <td>${user.reason}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    }
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDebugModal() {
+    const modal = document.getElementById('debugModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
+function generateFirstTimeUsersAnalysis(labels, firstTimeData) {
+    const analysisPanel = document.getElementById('firstTimeUsersAnalysis');
+    if (!analysisPanel || !firstTimeData || firstTimeData.length === 0) return;
+
+    const uniqueUsersData = Charts.uniqueUsersChart ? Charts.uniqueUsersChart.data.datasets[0].data : [];
+    const total = firstTimeData.reduce((sum, val) => sum + val, 0);
+    const avg = total / firstTimeData.length;
+    const max = Math.max(...firstTimeData);
+    const maxMonth = labels[firstTimeData.indexOf(max)];
+
+    let trendIcon = 'fa-minus';
+    let trendClass = 'neutral';
+    let trendText = 'estable';
+    if (firstTimeData.length >= 4) {
+        const recent = firstTimeData.slice(-2).reduce((a, b) => a + b, 0) / 2;
+        const older = firstTimeData.slice(0, 2).reduce((a, b) => a + b, 0) / 2;
+        if (recent > older * 1.15) { trendIcon = 'fa-arrow-trend-up'; trendClass = 'positive'; trendText = 'creciente'; }
+        else if (recent < older * 0.85) { trendIcon = 'fa-arrow-trend-down'; trendClass = 'negative'; trendText = 'decreciente'; }
+    }
+
+    const percentages = firstTimeData.map((newUsers, idx) => {
+        const totalUsers = uniqueUsersData[idx] || 0;
+        return totalUsers > 0 ? (newUsers / totalUsers) * 100 : 0;
+    });
+    const avgPercentage = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+    const maxPercentage = Math.max(...percentages);
+    const maxPercentageMonth = labels[percentages.indexOf(maxPercentage)];
+    const maxPercentageUsers = firstTimeData[percentages.indexOf(maxPercentage)];
+    const maxPercentageTotalUsers = uniqueUsersData[percentages.indexOf(maxPercentage)];
+
+    let bullets = [];
+    if (total === 0) bullets.push(`<i class="fas fa-times-circle"></i> Sin usuarios nuevos/reactivados detectados con umbral de ${AppState.firstTimeUsersThreshold || 0} días`);
+    else bullets.push(`<i class="fas fa-users"></i> Promedio: <strong>${Math.round(avg)} usuarios/mes</strong> (${avgPercentage.toFixed(0)}% del total)`);
+    bullets.push(`<i class="fas ${trendIcon}"></i> Tendencia: <strong class="trend-${trendClass}">${trendText}</strong>`);
+    if (max > 0 && maxPercentageTotalUsers > 0) bullets.push(`<i class="fas fa-trophy"></i> Mejor mes: <strong>${maxMonth}</strong> con ${maxPercentageUsers} usuarios (<strong>${maxPercentage.toFixed(0)}%</strong> de ${maxPercentageTotalUsers} usuarios únicos)`);
+
+    let monthlyBreakdown = '';
+    if (firstTimeData.length > 0 && firstTimeData.length <= 12) {
+        const monthlyItems = labels.map((month, idx) => {
+            const newUsers = firstTimeData[idx];
+            const totalUsers = uniqueUsersData[idx] || 0;
+            const percentage = totalUsers > 0 ? (newUsers / totalUsers) * 100 : 0;
+            const monthName = new Date(month + '-01').toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
+            let icon = 'fa-circle';
+            if (percentage >= 20) icon = 'fa-arrow-trend-up';
+            else if (percentage >= 10) icon = 'fa-arrow-up';
+            else if (percentage >= 5) icon = 'fa-arrow-right';
+            else if (percentage > 0) icon = 'fa-arrow-down';
+            return `
+                <div class="monthly-item">
+                    <div class="month-title"><i class="fas ${icon}"></i> ${monthName}</div>
+                    <div class="month-value">${newUsers} (${percentage.toFixed(0)}%)</div>
+                </div>
+            `;
+        }).join('');
+        monthlyBreakdown = `
+            <div class="analysis-compact">
+                <div class="monthly-breakdown">
+                    <div class="monthly-breakdown-header">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Desglose Mensual</span>
+                    </div>
+                    <div class="monthly-grid">${monthlyItems}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    analysisPanel.innerHTML = `
+        <div class="analysis-compact">
+            <div class="analysis-compact-header"><i class="fas fa-lightbulb"></i><span>Análisis Rápido</span></div>
+            <ul class="analysis-bullets">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+        </div>
+        ${monthlyBreakdown}
+    `;
+}
+
+// Expose globally for existing handlers
+window.openMonthSelector = openMonthSelector;
+window.closeMonthSelector = closeMonthSelector;
+window.selectMonthForDebug = selectMonthForDebug;
+window.showDebugModal = showDebugModal;
+window.closeDebugModal = closeDebugModal;
+window.generateFirstTimeUsersAnalysis = generateFirstTimeUsersAnalysis;
+
+// Setup button listener when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    const debugButton = document.getElementById('openDebugSelector');
+    if (debugButton) debugButton.addEventListener('click', openMonthSelector);
+});
+
 /**
  * Open debug modal for a specific chart
  * @param {string} chartId - The chart identifier

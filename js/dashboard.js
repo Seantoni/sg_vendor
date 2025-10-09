@@ -248,36 +248,83 @@ function updateDashboard(data) {
         notification.remove();
     }
     
-    // Ensure data is an array
+    // Ensure data is an array (current-period filtered passed in)
     const safeData = Array.isArray(data) ? data : [];
 
+    // Build a base dataset filtered by Business/Location only (no date filter)
+    let blData = Array.isArray(AppState.transactionData) ? AppState.transactionData : [];
+    if (AppState.selectedBusiness !== 'all' || AppState.selectedLocation !== 'all') {
+        blData = blData.filter(item => {
+            const businessName = extractBusinessName(item.merchant);
+            const location = extractLocation(item.merchant);
+            let businessMatch = AppState.selectedBusiness === 'all';
+            if (!businessMatch) {
+                if (businessName === AppState.selectedBusiness) {
+                    businessMatch = true;
+                } else {
+                    const normalizedSelectedBusiness = normalizeBusinessName(AppState.selectedBusiness);
+                    const normalizedBusinessName = normalizeBusinessName(businessName);
+                    if (normalizedBusinessName === normalizedSelectedBusiness) {
+                        businessMatch = true;
+                    } else if (window.businessGroups) {
+                        const selectedGroup = window.businessGroups.find(g => g.all.includes(AppState.selectedBusiness));
+                        if (selectedGroup && selectedGroup.all.includes(businessName)) businessMatch = true;
+                    }
+                }
+            }
+            const locationMatch = AppState.selectedLocation === 'all' || location === AppState.selectedLocation;
+            return businessMatch && locationMatch;
+        });
+    }
+
     // Apply date range filtering
-    let filteredData = safeData;
+    // Derive current period from BL-filtered data (not from already date-filtered safeData)
+    let filteredData = blData;
     if (AppState.currentDateRange && AppState.currentDateRange.length === 2) {
         const startDate = new Date(AppState.currentDateRange[0]);
         const endDate = new Date(AppState.currentDateRange[1]);
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(23, 59, 59, 999);
 
-        filteredData = safeData.filter(item => {
+        filteredData = blData.filter(item => {
             const date = new Date(item.date);
             return date >= startDate && date <= endDate;
         });
     }
 
-    // Get data for previous period
+    // Get data for previous period (fallback: derive from current range if missing)
     let previousPeriodData = [];
-    if (AppState.previousDateRange && AppState.previousDateRange.length === 2) {
-        const prevStartDate = new Date(AppState.previousDateRange[0]);
-        const prevEndDate = new Date(AppState.previousDateRange[1]);
+    (function computePreviousPeriod() {
+        let prevStartDate = null;
+        let prevEndDate = null;
+
+        if (AppState.previousDateRange && AppState.previousDateRange.length === 2) {
+            prevStartDate = new Date(AppState.previousDateRange[0]);
+            prevEndDate = new Date(AppState.previousDateRange[1]);
+        } else if (AppState.currentDateRange && AppState.currentDateRange.length === 2) {
+            const curStart = new Date(AppState.currentDateRange[0]);
+            const curEnd = new Date(AppState.currentDateRange[1]);
+
+            // Count months in current range (inclusive)
+            const monthsCount = (curEnd.getFullYear() - curStart.getFullYear()) * 12 + (curEnd.getMonth() - curStart.getMonth()) + 1;
+
+            // Previous range: shift the whole span back by the same number of months
+            const prevStartMonth = new Date(curStart.getFullYear(), curStart.getMonth() - monthsCount, 1);
+            const prevEndMonth = new Date(curEnd.getFullYear(), curEnd.getMonth() - monthsCount + 1, 0);
+
+            prevStartDate = new Date(prevStartMonth.getFullYear(), prevStartMonth.getMonth(), 1);
+            prevEndDate = new Date(prevEndMonth.getFullYear(), prevEndMonth.getMonth(), prevEndMonth.getDate(), 23, 59, 59, 999);
+        }
+
+        if (!prevStartDate || !prevEndDate) return; // No previous period available
+
         prevStartDate.setHours(0, 0, 0, 0);
         prevEndDate.setHours(23, 59, 59, 999);
-
-        previousPeriodData = safeData.filter(item => {
+        previousPeriodData = blData.filter(item => {
             const date = new Date(item.date);
             return date >= prevStartDate && date <= prevEndDate;
         });
-    }
+    })();
 
     // Calculate metrics for current period
     const uniqueUsers = new Set(filteredData.map(item => item.email)).size;
@@ -373,18 +420,28 @@ function updateDashboard(data) {
     safeSetText('currentAvgVisits', avgVisits.toFixed(1));
 
     // Calculate average ticket (average transaction amount)
-    const avgTicket = uniqueUsers > 0 ? totalAmount / uniqueUsers : 0;
+    const totalTransactions = filteredData.length;
+    const totalTransactionsPrev = previousPeriodData.length;
+    const avgTicket = totalTransactions > 0 ? totalAmount / totalTransactions : 0;
+    const avgTicketPrev = totalTransactionsPrev > 0 ? totalAmountPrev / totalTransactionsPrev : 0;
+    
+    safeSetText('avgTicket', `$${avgTicket.toFixed(2)}`);
+    safeSetText('avgTicketPrev', `$${avgTicketPrev.toFixed(2)}`);
+    
+    // Update single period cards - Average Ticket
     safeSetText('currentAvgTicket', `$${avgTicket.toFixed(2)}`);
 
     // Update comparison displays
     const usersGrowth = calculateGrowth(uniqueUsers, uniqueUsersPrev);
     const returningUsersGrowth = calculateGrowth(returningUsers, returningUsersPrev);
     const amountGrowth = calculateGrowth(totalAmount, totalAmountPrev);
+    const avgTicketGrowth = calculateGrowth(avgTicket, avgTicketPrev);
     const avgVisitsGrowth = calculateGrowth(avgVisits, avgVisitsPrev);
 
     updateComparisonDisplay('usersComparison', usersGrowth);
     updateComparisonDisplay('returningUsersComparison', returningUsersGrowth);
     updateComparisonDisplay('amountComparison', amountGrowth);
+    updateComparisonDisplay('avgTicketComparison', avgTicketGrowth);
     updateComparisonDisplay('avgVisitsComparison', avgVisitsGrowth);
 
     // Update charts with processed data and calculated metrics
@@ -396,7 +453,9 @@ function updateDashboard(data) {
         totalAmount: totalAmount,
         totalAmountPrev: totalAmountPrev,
         avgVisits: avgVisits,
-        avgVisitsPrev: avgVisitsPrev
+        avgVisitsPrev: avgVisitsPrev,
+        avgTicket: avgTicket,
+        avgTicketPrev: avgTicketPrev
     });
 }
 
@@ -475,6 +534,10 @@ function updateCharts(data, calculatedMetrics = {}) {
         if (data && data.length > 0) {
             // Reset location chart initialization flag to force update
             AppState.locationChartInitialized = false;
+            
+            console.log('📍 Initializing location charts with data length:', data.length);
+            console.log('📍 Date range:', AppState.currentDateRange);
+            console.log('📍 Sample dates in data:', data.slice(0, 3).map(d => d.date));
             
             // Use setTimeout to ensure charts are created after DOM is ready
             setTimeout(() => {
