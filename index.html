@@ -232,6 +232,10 @@
                     <span id="latestTransactionDate" class="latest-date-info">Fecha más reciente: Cargando...</span>
                 </div>
                 </div>
+                <button id="generateFullAnalysisBtn" class="full-analysis-btn" title="Generar Análisis Completo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Análisis Completo</span>
+                </button>
             </div>
             
             <!-- Compact Business Display -->
@@ -540,6 +544,19 @@
                         </div>
                         <div id="avgVisitsAnalysis" class="chart-analysis-panel"></div>
                     </div>
+                    <div class="metrics-chart-container">
+                        <div class="chart-header">
+                            <h4 class="chart-header-title">Total de Transacciones por Mes</h4>
+                            <button id="debugTotalTransactions" class="debug-btn-header">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Detalle</span>
+                            </button>
+                        </div>
+                        <div class="metrics-chart">
+                            <canvas id="totalTransactionsChart"></canvas>
+                        </div>
+                        <div id="totalTransactionsAnalysis" class="chart-analysis-panel"></div>
+                    </div>
                 </div>
                 
                 <!-- Nuevos o Reactivados Chart -->
@@ -751,6 +768,24 @@
         </div>
     </div>
     
+    <!-- Full Business Analysis Modal -->
+    <div id="fullAnalysisModal" class="modal hidden">
+        <div class="modal-content full-analysis-modal-content">
+            <span class="close-modal" onclick="closeFullAnalysisModal()">&times;</span>
+            <div class="full-analysis-header">
+                <i class="fas fa-chart-line"></i>
+                <h2>Análisis Completo del Negocio</h2>
+                <p id="fullAnalysisSubtitle">Resumen ejecutivo de métricas y recomendaciones</p>
+            </div>
+            <div class="full-analysis-body" id="fullAnalysisBody">
+                <div class="analysis-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Generando análisis...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Generic Chart Debug Modal -->
     <div id="chartDebugModal" class="modal hidden">
         <div class="modal-content month-selector-content">
@@ -790,6 +825,10 @@
             <div class="debug-modal-header">
                 <h2 id="debugModalTitle">Detalle de Cálculo</h2>
                 <p id="debugModalSubtitle"></p>
+                <button id="downloadFirstTimeUsersCSV" class="csv-download-btn-header" style="display: none;">
+                    <i class="fas fa-download"></i>
+                    Descargar CSV
+                </button>
             </div>
             <div class="debug-modal-body">
                 <div class="debug-stats">
@@ -811,6 +850,7 @@
                         <thead>
                             <tr>
                                 <th>ID Usuario</th>
+                                <th>ID Transacción</th>
                                 <th>Primera Transacción (Global)</th>
                                 <th>Días desde Primera</th>
                                 <th>Fecha Transacción</th>
@@ -841,6 +881,7 @@
     <script src="js/date-handlers.js"></script>
     <script src="js/modal.js"></script>
     <script src="js/chart-analysis.js"></script>
+    <script src="js/full-analysis.js"></script>
     
     <!-- Main Application Entry Point -->
     <script src="js/main.js"></script>

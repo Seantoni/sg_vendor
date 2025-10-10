@@ -873,6 +873,9 @@ function initializeFilterModal() {
     }
     
     function applyModalFilters() {
+        // Track if a specific business was selected
+        let specificBusinessSelected = false;
+        
         // Transfer business selection with business group logic
         const modalBusinessSearch = document.getElementById('modalBusinessSearch');
         const mainBusinessSearch = document.getElementById('businessSearch');
@@ -881,6 +884,8 @@ function initializeFilterModal() {
             
             // If not 'all', find the primary business name from the group
             if (selectedBusinessName !== 'Todos los Negocios' && selectedBusinessName !== '') {
+                specificBusinessSelected = true;
+                
                 // Use the same business group logic as the main filter
                 if (window.businessGroups) {
                     const group = window.businessGroups.find(g => g.all.includes(selectedBusinessName));
@@ -952,6 +957,13 @@ function initializeFilterModal() {
             // Update filter summary after modal filters are applied
             if (typeof updateFilterSummary === 'function') {
                 updateFilterSummary();
+            }
+            
+            // Open full analysis modal if a specific business was selected
+            if (specificBusinessSelected && typeof window.openFullAnalysisModal === 'function') {
+                setTimeout(() => {
+                    window.openFullAnalysisModal();
+                }, 500);
             }
         }, 300);
     }

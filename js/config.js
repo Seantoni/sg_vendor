@@ -35,6 +35,7 @@ const Charts = {
     returningUsersPercentageChart: null,
     totalAmountChart: null,
     avgVisitsChart: null,
+    totalTransactionsChart: null,
     firstTimeUsersChart: null,
     avgSpendPerUserChart: null,
     dailySalesChart: null,

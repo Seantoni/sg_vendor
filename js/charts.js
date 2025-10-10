@@ -969,6 +969,71 @@ function createAvgVisitsChart(chartData) {
     }
 }
 
+function createTotalTransactionsChart(chartData) {
+    console.log('🔍 createTotalTransactionsChart called');
+    const el = document.getElementById('totalTransactionsChart');
+    console.log('🔍 Canvas element:', el);
+    console.log('🔍 chartData received:', chartData);
+    console.log('🔍 chartData.totalTransactions:', chartData ? chartData.totalTransactions : 'chartData is null/undefined');
+    
+    if (!el) {
+        console.error('❌ totalTransactionsChart canvas not found in DOM');
+        return;
+    }
+    
+    // Create chart even if data is empty - it will show empty state
+    const transactionsData = (chartData && chartData.totalTransactions) ? chartData.totalTransactions : [];
+    const labelsData = (chartData && chartData.labels) ? chartData.labels : [];
+    
+    console.log('✅ Creating chart with:', { labels: labelsData, data: transactionsData });
+    
+    Charts.totalTransactionsChart = safeDestroyChart(Charts.totalTransactionsChart);
+    clearCanvas(el);
+    Charts.totalTransactionsChart = new Chart(el, {
+        type: 'bar',
+        data: { labels: labelsData, datasets: [{
+            label: 'Total Transacciones',
+            data: transactionsData,
+            backgroundColor: 'rgba(255, 159, 64, 0.7)',
+            borderColor: '#FF9F40',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: buildTitle('Total de Transacciones por Mes'),
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end', align: 'top', offset: 5, 
+                    formatter: Math.round,
+                    font: { weight: 'bold', size: 11 }, padding: 6
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { precision: 0 } },
+                x: { grid: { display: false } }
+            },
+            onClick: (event, elements) => {
+                if (elements.length > 0 && typeof openChartModal === 'function') {
+                    openChartModal('totalTransactionsChart', 'Total de Transacciones por Mes');
+                }
+            }
+        },
+        plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []
+    });
+    
+    console.log('✅ Chart created successfully, instance:', Charts.totalTransactionsChart);
+    
+    if (window.generateChartAnalysis) {
+        window.generateChartAnalysis('totalTransactions', labelsData, transactionsData, {
+            type: 'number',
+            note: 'Número total de transacciones procesadas en cada período mensual. Si un usuario hace 3 compras, cuenta como 3 transacciones.'
+        });
+    }
+}
+
 function createReturningPercentageChart(chartData) {
     const el = document.getElementById('returningUsersPercentageChart');
     if (!el) return;
@@ -1148,19 +1213,39 @@ function createAvgSpendPerUserChart(chartData) {
 }
 
 function initMetricsCharts(chartData) {
-    createUniqueUsersChart(chartData);
-    createReturningUsersChart(chartData);
-    createAvgVisitsChart(chartData);
-    createReturningPercentageChart(chartData);
-    createTotalAmountChart(chartData);
-    createFirstTimeUsersChart(chartData);
-    createAvgSpendPerUserChart(chartData);
+    console.log('🚀 initMetricsCharts called with chartData:', {
+        labels: chartData.labels,
+        totalTransactions: chartData.totalTransactions
+    });
+    
+    try {
+        console.log('📍 Step 1: Creating uniqueUsersChart');
+        createUniqueUsersChart(chartData);
+        console.log('📍 Step 2: Creating returningUsersChart');
+        createReturningUsersChart(chartData);
+        console.log('📍 Step 3: Creating avgVisitsChart');
+        createAvgVisitsChart(chartData);
+        console.log('📍 Step 4: Creating totalTransactionsChart');
+        createTotalTransactionsChart(chartData);
+        console.log('📍 Step 5: Creating returningPercentageChart');
+        createReturningPercentageChart(chartData);
+        console.log('📍 Step 6: Creating totalAmountChart');
+        createTotalAmountChart(chartData);
+        console.log('📍 Step 7: Creating firstTimeUsersChart');
+        createFirstTimeUsersChart(chartData);
+        console.log('📍 Step 8: Creating avgSpendPerUserChart');
+        createAvgSpendPerUserChart(chartData);
+        console.log('✅ All charts created successfully');
+    } catch (error) {
+        console.error('❌ Error in initMetricsCharts:', error);
+    }
 }
 
 // Export builders
 window.createUniqueUsersChart = createUniqueUsersChart;
 window.createReturningUsersChart = createReturningUsersChart;
 window.createAvgVisitsChart = createAvgVisitsChart;
+window.createTotalTransactionsChart = createTotalTransactionsChart;
 window.createReturningPercentageChart = createReturningPercentageChart;
 window.createTotalAmountChart = createTotalAmountChart;
 window.createFirstTimeUsersChart = createFirstTimeUsersChart;

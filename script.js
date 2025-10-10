@@ -57,6 +57,7 @@ function initMetricsCharts(chartData) {
         window.createUniqueUsersChart(chartData);
         window.createReturningUsersChart(chartData);
         window.createAvgVisitsChart(chartData);
+        window.createTotalTransactionsChart(chartData);
         window.createReturningPercentageChart(chartData);
         window.createTotalAmountChart(chartData);
         window.createFirstTimeUsersChart(chartData);

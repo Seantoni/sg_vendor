@@ -24,6 +24,42 @@ function calculateFirstVisitDates(transactions) {
         
         console.log(`📋 Created privacy codes for ${window.emailToUserCode.size} users`);
     }
+    
+    // Create transaction ID mapping (unique ID per transaction)
+    if (!window.transactionIdMap) {
+        window.transactionIdMap = new Map();
+        let transactionIdCounter = 1;
+        
+        // Sort transactions by date, then by email, then by amount, then by merchant for deterministic ordering
+        const sortedTx = [...transactions].sort((a, b) => {
+            // Primary: sort by date
+            const dateDiff = a.date - b.date;
+            if (dateDiff !== 0) return dateDiff;
+            
+            // Secondary: sort by email (alphabetically)
+            const emailCompare = a.email.localeCompare(b.email);
+            if (emailCompare !== 0) return emailCompare;
+            
+            // Tertiary: sort by amount
+            const amountDiff = a.amount - b.amount;
+            if (amountDiff !== 0) return amountDiff;
+            
+            // Quaternary: sort by merchant (alphabetically)
+            return a.merchant.localeCompare(b.merchant);
+        });
+        
+        sortedTx.forEach(item => {
+            // Create a unique key for this transaction
+            const txKey = `${item.email}-${item.date.getTime()}-${item.amount}-${item.merchant}`;
+            
+            if (!window.transactionIdMap.has(txKey)) {
+                window.transactionIdMap.set(txKey, transactionIdCounter);
+                transactionIdCounter++;
+            }
+        });
+        
+        console.log(`🔢 Created transaction IDs for ${window.transactionIdMap.size} transactions`);
+    }
 
     // Process each transaction to find first visits
     transactions.forEach(item => {
@@ -238,45 +274,56 @@ function filterAndUpdateDashboard() {
         });
     }
 
-    // If no date ranges are selected and we have data, set default periods to month ranges
+    // If no date ranges are selected and we have data, set default periods to current quarter
     if ((!AppState.currentDateRange || AppState.currentDateRange.length !== 2) && filteredData.length > 0) {
         const sortedData = [...filteredData].sort((a, b) => a.date - b.date);
         const lastTransactionDate = new Date(sortedData[sortedData.length - 1].date);
 
-        // Set current period to the last transaction's month (single month as default)
-        const currentStartMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth(), 1);
-        const currentEndMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth(), 1);
+        // Get current quarter based on last transaction date
+        const getQuarter = (date) => Math.floor(date.getMonth() / 3);
+        const currentQuarter = getQuarter(lastTransactionDate);
+        const currentYear = lastTransactionDate.getFullYear();
         
-        const currentStart = new Date(currentStartMonth.getFullYear(), currentStartMonth.getMonth(), 1);
-        const currentEnd = new Date(currentEndMonth.getFullYear(), currentEndMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+        // Calculate start and end of current quarter
+        const quarterStartMonth = currentQuarter * 3;
+        const currentStartMonth = new Date(currentYear, quarterStartMonth, 1);
+        const currentEndMonth = new Date(currentYear, quarterStartMonth + 2, 1);
+        
+        const currentStart = new Date(currentYear, quarterStartMonth, 1);
+        const currentEnd = new Date(currentYear, quarterStartMonth + 3, 0, 23, 59, 59, 999);
 
         AppState.currentDateRange = [currentStart, currentEnd];
         DatePickers.currentDatePicker.setDate([currentStartMonth, currentEndMonth]);
         
         const currentInput = document.querySelector('#currentDateRange');
         if (currentInput) {
-            currentInput.value = lastTransactionDate.toLocaleDateString('en-US', {
-                month: 'long',
-                year: 'numeric'
-            });
+            const quarterLabel = `Q${currentQuarter + 1} ${currentYear}`;
+            const startMonthName = currentStart.toLocaleDateString('es-MX', { month: 'short' });
+            const endMonthName = currentEnd.toLocaleDateString('es-MX', { month: 'short' });
+            currentInput.value = `${startMonthName} - ${endMonthName} ${currentYear} (${quarterLabel})`;
         }
 
-        // Set previous period to the previous month (same duration - 1 month)
-        const previousStartMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth() - 1, 1);
-        const previousEndMonth = new Date(lastTransactionDate.getFullYear(), lastTransactionDate.getMonth() - 1, 1);
+        // Set previous period to the previous quarter
+        const prevQuarter = currentQuarter - 1;
+        const prevYear = prevQuarter < 0 ? currentYear - 1 : currentYear;
+        const prevQuarterAdjusted = prevQuarter < 0 ? 3 : prevQuarter;
         
-        const previousStart = new Date(previousStartMonth.getFullYear(), previousStartMonth.getMonth(), 1);
-        const previousEnd = new Date(previousEndMonth.getFullYear(), previousEndMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+        const prevQuarterStartMonth = prevQuarterAdjusted * 3;
+        const previousStartMonth = new Date(prevYear, prevQuarterStartMonth, 1);
+        const previousEndMonth = new Date(prevYear, prevQuarterStartMonth + 2, 1);
+        
+        const previousStart = new Date(prevYear, prevQuarterStartMonth, 1);
+        const previousEnd = new Date(prevYear, prevQuarterStartMonth + 3, 0, 23, 59, 59, 999);
 
         AppState.previousDateRange = [previousStart, previousEnd];
         DatePickers.previousDatePicker.setDate([previousStartMonth, previousEndMonth]);
         
         const previousInput = document.querySelector('#previousDateRange');
         if (previousInput) {
-            previousInput.value = previousStartMonth.toLocaleDateString('en-US', {
-                month: 'long',
-                year: 'numeric'
-            });
+            const quarterLabel = `Q${prevQuarterAdjusted + 1} ${prevYear}`;
+            const startMonthName = previousStart.toLocaleDateString('es-MX', { month: 'short' });
+            const endMonthName = previousEnd.toLocaleDateString('es-MX', { month: 'short' });
+            previousInput.value = `${startMonthName} - ${endMonthName} ${prevYear} (${quarterLabel})`;
         }
     }
 

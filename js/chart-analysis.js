@@ -6,6 +6,102 @@
 // Store chart data globally for debug access
 window.chartDebugData = {};
 
+// Helper function to get transaction ID
+function getTransactionId(transaction) {
+    if (!window.transactionIdMap) return '?';
+    
+    const txKey = `${transaction.email}-${transaction.date.getTime()}-${transaction.amount}-${transaction.merchant}`;
+    const txId = window.transactionIdMap.get(txKey);
+    
+    return txId || '?';
+}
+
+// Function to download debug data as CSV
+function downloadDebugDataCSV(chartId, monthKey) {
+    const debugData = window.chartDebugData[chartId];
+    if (!debugData) {
+        console.warn('No debug data available for', chartId);
+        return;
+    }
+    
+    const rawData = getRawMonthData(chartId, monthKey);
+    if (!rawData || !rawData.users) {
+        console.warn('No raw data available for download');
+        return;
+    }
+    
+    // Build CSV content
+    let csvContent = 'ID Usuario,IDs Transacciones,Transacciones,Monto Total\n';
+    
+    rawData.users.forEach(user => {
+        const txIds = user.transactionIds ? user.transactionIds.join('; ') : '';
+        csvContent += `#${user.id},${txIds},${user.transactions || 0},${user.amount || 0}\n`;
+    });
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const businessName = AppState.selectedBusiness === 'all' ? 'Todos' : AppState.selectedBusiness;
+    const fileName = `${chartId}_${monthKey}_${businessName}.csv`.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log('✅ CSV downloaded:', fileName);
+}
+
+// Function to download "Nuevos o Reactivados" debug data as CSV
+function downloadFirstTimeUsersCSV(monthKey) {
+    const debugData = (window.firstTimeUsersDebugData && window.firstTimeUsersDebugData[monthKey]) || [];
+    
+    if (debugData.length === 0) {
+        console.warn('No debug data available for download');
+        return;
+    }
+    
+    // Build CSV content
+    let csvContent = 'ID Usuario,ID Transacción,Primera Transacción Global,Días desde Primera,Fecha Transacción,Estado,Califica\n';
+    
+    debugData.forEach(user => {
+        const fullUserCode = (window.emailToUserCode && window.emailToUserCode.get(user.email)) || 'Usuario #?';
+        const userNumber = fullUserCode.replace('Usuario #', '');
+        
+        // Get transaction ID
+        const txKey = `${user.email}-${user.transactionDate.getTime()}-${user.amount || 0}-${user.merchant || ''}`;
+        const txId = window.transactionIdMap ? (window.transactionIdMap.get(txKey) || '?') : '?';
+        
+        const globalFirst = user.globalFirst.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+        const txDate = user.transactionDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+        
+        csvContent += `#${userNumber},#${txId},${globalFirst},${user.daysSinceProgramEntry},${txDate},${user.reason},${user.qualifies ? 'Sí' : 'No'}\n`;
+    });
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const businessName = AppState.selectedBusiness === 'all' ? 'Todos' : AppState.selectedBusiness;
+    const fileName = `NuevosReactivados_${monthKey}_${businessName}.csv`.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log('✅ CSV downloaded:', fileName);
+}
+
 /**
  * Generate analysis for any chart based on context
  * @param {string} chartId - The chart identifier
@@ -194,6 +290,13 @@ function showDebugModal(monthKey) {
     const subtitle = document.getElementById('debugModalSubtitle');
     if (title) title.textContent = `Nuevos o Reactivados - ${monthKey}`;
     if (subtitle) subtitle.textContent = 'Análisis detallado de usuarios que califican en este mes';
+    
+    // Show and configure download button
+    const downloadBtn = document.getElementById('downloadFirstTimeUsersCSV');
+    if (downloadBtn) {
+        downloadBtn.style.display = 'flex';
+        downloadBtn.onclick = () => downloadFirstTimeUsersCSV(monthKey);
+    }
 
     const qualified = debugData.filter(d => d.qualifies).length;
     const total = debugData.length;
@@ -208,15 +311,21 @@ function showDebugModal(monthKey) {
     const tableBody = document.getElementById('debugTableBody');
     if (tableBody) {
         if (debugData.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #636e72;">No hay datos para este mes</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #636e72;">No hay datos para este mes</td></tr>';
         } else {
             tableBody.innerHTML = debugData.map(user => {
                 const rowClass = user.qualifies ? 'debug-row-success' : 'debug-row-excluded';
                 const fullUserCode = (window.emailToUserCode && window.emailToUserCode.get(user.email)) || 'Usuario #?';
                 const userNumber = fullUserCode.replace('Usuario #', '');
+                
+                // Get transaction ID
+                const txKey = `${user.email}-${user.transactionDate.getTime()}-${user.amount || 0}-${user.merchant || ''}`;
+                const txId = window.transactionIdMap ? (window.transactionIdMap.get(txKey) || '?') : '?';
+                
                 return `
                     <tr class="${rowClass}">
                         <td class="user-id-cell"><strong>#${userNumber}</strong></td>
+                        <td class="tx-id-cell"><strong>#${txId}</strong></td>
                         <td>${user.globalFirst.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                         <td>${user.daysSinceProgramEntry} días</td>
                         <td>${user.transactionDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
@@ -439,6 +548,12 @@ function showChartMonthDetails(chartId, monthIndex) {
             const avgAmountPerUser = users.length > 0 ? (rawData.totalAmount / users.length).toFixed(0) : '0';
             
             detailsContent = `
+                <div style="display: flex; justify-content: flex-end; padding: 0 16px 12px 16px;">
+                    <button onclick="downloadDebugDataCSV('${chartId}', '${monthKey}')" class="csv-download-btn">
+                        <i class="fas fa-download"></i>
+                        Descargar CSV
+                    </button>
+                </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; padding: 0 16px;">
                     <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; text-align: center;">
                         <div style="font-size: 24px; font-weight: 600; color: #6B64DB;">${users.length}</div>
@@ -462,21 +577,29 @@ function showChartMonthDetails(chartId, monthIndex) {
                         <thead>
                             <tr>
                                 <th>ID Usuario</th>
+                                <th>IDs Transacciones</th>
                                 <th>Transacciones</th>
                                 <th>Monto Total</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${users.slice(0, 50).map(user => `
+                            ${users.slice(0, 50).map(user => {
+                                // Get all transaction IDs for this user
+                                const txIds = user.transactionIds || [];
+                                const txIdsDisplay = txIds.length > 0 ? txIds.join(', ') : '?';
+                                
+                                return `
                                 <tr>
                                     <td class="user-id-cell"><strong>#${user.id}</strong></td>
+                                    <td class="tx-id-cell" style="font-size: 10px; color: #636e72;">${txIdsDisplay}</td>
                                     <td style="text-align: center;">${user.transactions || 1}</td>
                                     <td style="text-align: right; font-weight: 600;">$${Math.round(user.amount || 0).toLocaleString()}</td>
                                 </tr>
-                            `).join('')}
+                            `;
+                            }).join('')}
                             ${users.length > 50 ? `
                                 <tr>
-                                    <td colspan="3" style="text-align: center; padding: 12px; color: #636e72;">
+                                    <td colspan="4" style="text-align: center; padding: 12px; color: #636e72;">
                                         <i class="fas fa-ellipsis-h"></i>
                                         Mostrando 50 de ${users.length} usuarios
                                     </td>
@@ -627,18 +750,24 @@ function getRawMonthData(chartId, monthKey) {
         const userCode = window.emailToUserCode && window.emailToUserCode.get(email);
         const userId = userCode ? userCode.replace('Usuario #', '') : '?';
         
+        // Get transaction ID
+        const txKey = `${t.email}-${t.date.getTime()}-${t.amount}-${t.merchant}`;
+        const txId = window.transactionIdMap ? (window.transactionIdMap.get(txKey) || '?') : '?';
+        
         if (!userMap.has(email)) {
             userMap.set(email, {
                 id: userId,
                 email: email,
                 transactions: 0,
-                amount: 0
+                amount: 0,
+                transactionIds: []
             });
         }
         
         const user = userMap.get(email);
         user.transactions += 1;
         user.amount += parseFloat(t.amount) || 0;
+        user.transactionIds.push(txId);
     });
 
     const result = {
@@ -687,6 +816,8 @@ window.openChartDebugModal = openChartDebugModal;
 window.showChartMonthDetails = showChartMonthDetails;
 window.closeChartDebugModal = closeChartDebugModal;
 window.closeMonthDetailsModal = closeMonthDetailsModal;
+window.downloadDebugDataCSV = downloadDebugDataCSV;
+window.downloadFirstTimeUsersCSV = downloadFirstTimeUsersCSV;
 
 // Initialize debug button listeners
 document.addEventListener('DOMContentLoaded', function() {
@@ -694,6 +825,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const debugButtons = {
         'debugUniqueUsers': 'uniqueUsers',
         'debugAvgVisits': 'avgVisits',
+        'debugTotalTransactions': 'totalTransactions',
         'debugReturningUsers': 'returningUsers',
         'debugReturningPercentage': 'returningPercentage',
         'debugTotalAmount': 'totalAmount',

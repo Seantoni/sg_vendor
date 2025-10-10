@@ -466,24 +466,34 @@ function updateCharts(data, calculatedMetrics = {}) {
         window.filteredTransactionData = Array.isArray(data) ? data : [];
         // Process data for chart visualization
         const monthlyData = {};
+        let skippedTransactions = 0;
+        let totalProcessed = 0;
         
         data.forEach(item => {
+            totalProcessed++;
             const date = parseDate(item.date);
-            if (!date) return;
+            if (!date) {
+                skippedTransactions++;
+                return;
+            }
             
             const monthKey = formatYearMonth(date);
             if (!monthlyData[monthKey]) {
                 monthlyData[monthKey] = {
                     users: new Set(),
                     visits: 0,
-                    amount: 0
+                    amount: 0,
+                    transactions: 0
                 };
             }
             
             monthlyData[monthKey].users.add(item.email);
             monthlyData[monthKey].visits++;
             monthlyData[monthKey].amount += parseFloat(item.amount) || 0;
+            monthlyData[monthKey].transactions++;
         });
+        
+        console.log(`📊 Transaction processing: ${totalProcessed} total, ${skippedTransactions} skipped (invalid dates), ${totalProcessed - skippedTransactions} processed`);
 
         // Convert to chart-friendly format
         const sortedMonths = Object.keys(monthlyData).sort();
@@ -508,6 +518,7 @@ function updateCharts(data, calculatedMetrics = {}) {
             labels: sortedMonths,
             uniqueUsers: sortedMonths.map(month => monthlyData[month].users.size),
             totalAmount: sortedMonths.map(month => monthlyData[month].amount),
+            totalTransactions: sortedMonths.map(month => monthlyData[month].transactions),
             avgVisits: sortedMonths.map(month => 
                 monthlyData[month].users.size > 0 
                     ? monthlyData[month].visits / monthlyData[month].users.size 
@@ -518,6 +529,11 @@ function updateCharts(data, calculatedMetrics = {}) {
             firstTimeUsers: firstTimeUsersByMonth,
             avgSpendPerUser: avgSpendPerUser
         };
+
+        console.log('📊 Chart data with totalTransactions:', {
+            labels: chartData.labels,
+            totalTransactions: chartData.totalTransactions
+        });
 
         // Initialize all charts with the data
         initMetricsCharts(chartData);

@@ -34,7 +34,8 @@ function initializeChartModal() {
 function addChartClickListeners() {
     const chartCanvases = [
         'uniqueUsersChart',
-        'avgVisitsChart', 
+        'avgVisitsChart',
+        'totalTransactionsChart',
         'returningUsersChart',
         'returningUsersPercentageChart',
         'totalAmountChart',
@@ -252,6 +253,7 @@ function getChartInstance(canvasId) {
     const chartMap = {
         'uniqueUsersChart': Charts.uniqueUsersChart,
         'avgVisitsChart': Charts.avgVisitsChart,
+        'totalTransactionsChart': Charts.totalTransactionsChart,
         'returningUsersChart': Charts.returningUsersChart,
         'returningUsersPercentageChart': Charts.returningUsersPercentageChart,
         'totalAmountChart': Charts.totalAmountChart,
@@ -279,6 +281,7 @@ function getChartTitle(canvasId) {
     const titles = {
         'uniqueUsersChart': 'Usuarios Únicos por Mes',
         'avgVisitsChart': 'Visitas Promedio por Usuario',
+        'totalTransactionsChart': 'Total de Transacciones por Mes',
         'returningUsersChart': 'Usuarios Recurrentes',
         'returningUsersPercentageChart': 'Porcentaje de Usuarios Recurrentes',
         'totalAmountChart': 'Monto Total de Transacciones',
